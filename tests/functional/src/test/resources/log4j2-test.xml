@@ -24,6 +24,9 @@
         <!-- Reduce startup noise -->
         <AsyncLogger name="org.springframework.beans.factory" level="WARN"/>
 
+        <AsyncLogger name="org.mule.functional.classloading.isolation" level="DEBUG"/>
+        <AsyncLogger name="org.mule.functional.api.classloading.isolation" level="DEBUG"/>
+
         <!-- Mule classes -->
         <AsyncLogger name="org.mule" level="WARN"/>
         <AsyncLogger name="com.mulesoft" level="WARN"/>

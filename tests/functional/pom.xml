@@ -12,6 +12,8 @@
     <description>Mule functional test framework (TCK)</description>
 
     <properties>
+        <aetherVersion>1.1.0</aetherVersion>
+        <aetherProviderVersion>3.3.9</aetherProviderVersion>
         <formatterConfigPath>../../formatter.xml</formatterConfigPath>
     </properties>
 
@@ -91,6 +93,18 @@
     </build>
 
     <dependencies>
+        <dependency>
+            <groupId>org.eclipse.aether</groupId>
+            <artifactId>aether-api</artifactId>
+            <version>${aetherVersion}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.aether</groupId>
+            <artifactId>aether-impl</artifactId>
+            <version>${aetherVersion}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.mule</groupId>
             <artifactId>mule-core</artifactId>

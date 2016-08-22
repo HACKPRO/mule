@@ -8,7 +8,7 @@
 package org.mule.functional.api.classloading.isolation;
 
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import org.mule.functional.classloading.isolation.classification.DefaultClassPathClassifier;
+import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
 import org.mule.functional.classloading.isolation.maven.DefaultMavenMultiModuleArtifactMapping;
 import org.mule.functional.classloading.isolation.maven.DependencyGraphMavenDependenciesResolver;
@@ -41,7 +41,8 @@ import java.util.Set;
  */
 public class ArtifactIsolatedClassLoaderBuilder {
 
-  private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
+  private ClassPathClassifier classPathClassifier = new AetherClassPathClassifier();
+  //private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
   private MavenDependenciesResolver mavenDependenciesResolver = new DependencyGraphMavenDependenciesResolver();
   private ClassPathUrlProvider classPathUrlProvider = new ClassPathUrlProvider();
   private MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping = new DefaultMavenMultiModuleArtifactMapping();
@@ -185,6 +186,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
                                          mavenDependenciesResolver.buildDependencies(), mavenMultiModuleArtifactMapping,
+                                         //null, mavenMultiModuleArtifactMapping,
                                          exclusions, extraBootPackages, extensionBasePackages, exportClasses);
     } catch (IOException e) {
       throw new RuntimeException("Error while creating the classification context", e);

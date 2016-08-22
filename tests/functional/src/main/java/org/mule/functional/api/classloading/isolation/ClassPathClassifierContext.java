@@ -74,7 +74,7 @@ public class ClassPathClassifierContext {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder cannot be null");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder cannot be null");
     checkNotNull(classPathURLs, "classPathURLs cannot be null");
-    checkNotNull(dependenciesGraph, "dependenciesGraph cannot be null");
+    //checkNotNull(dependenciesGraph, "dependenciesGraph cannot be null");
     checkNotNull(mavenMultiModuleArtifactMapping, "mavenMultiModuleArtifactMapping cannot be null");
 
     this.rootArtifactClassesFolder = rootArtifactClassesFolder;
