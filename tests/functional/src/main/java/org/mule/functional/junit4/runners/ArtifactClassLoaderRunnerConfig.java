@@ -96,4 +96,9 @@ public @interface ArtifactClassLoaderRunnerConfig {
   // bundled within the container
   String exclusions() default "";
 
+  // AETHER
+
+  boolean useEclipseAether() default false;
+
+  String[] pluginCoordinates() default {};
 }

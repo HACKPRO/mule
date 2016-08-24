@@ -9,20 +9,21 @@ package org.mule.functional.classloading.isolation.classification.aether;
 
 import static org.apache.maven.repository.internal.MavenRepositorySystemUtils.newSession;
 import static org.eclipse.aether.repository.RepositoryPolicy.CHECKSUM_POLICY_IGNORE;
-import static org.eclipse.aether.repository.RepositoryPolicy.CHECKSUM_POLICY_WARN;
-import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_INTERVAL;
 import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_NEVER;
 import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
 
 import com.google.common.collect.Lists;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.DependencyCollectionException;
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
@@ -33,6 +34,9 @@ import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.repository.RepositoryPolicy;
+import org.eclipse.aether.resolution.ArtifactDescriptorException;
+import org.eclipse.aether.resolution.ArtifactDescriptorRequest;
+import org.eclipse.aether.resolution.ArtifactDescriptorResult;
 import org.eclipse.aether.resolution.DependencyRequest;
 import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
@@ -51,8 +55,8 @@ public class LocalRepositoryService {
   public static final String REPOSITORY_MULESOFT_ORG = "repository.mulesoft.org";
   public static final String MULE_PUBLIC_REPO_ID = "mule";
 
-  public static final String USER_HOME = "user.home";
   // TODO: this should be configured!
+  public static final String USER_HOME = "user.home";
   private static final String M2_REPO = "/.m2/repository";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -70,7 +74,6 @@ public class LocalRepositoryService {
     session.setOffline(true);
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
-    session.setConfigProperty("aether.artifactResolver.snapshotNormalization", false);
 
     system = newRepositorySystem();
 
@@ -78,8 +81,7 @@ public class LocalRepositoryService {
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
     session.setWorkspaceReader(new DefaultWorkspaceReader(mavenMultiModuleArtifactMapping));
 
-    session.setRepositoryListener(new LoggerRepositoryListener());
-    session.setTransferListener(new LoggerTransferListener());
+    //session.setRepositoryListener(new LoggerRepositoryListener());
   }
 
   public static RepositorySystem newRepositorySystem() {
@@ -103,24 +105,16 @@ public class LocalRepositoryService {
   }
 
   /**
-   * Resolves transitive dependencies for the dependency using the filter.
+   * Resolves transitive dependencies for the dependency as root node using the filter.
    *
-   * @param dependency {@link Dependency} to collect its dependencies
+   * @param dependency {@link Dependency} node from to collect its dependencies
    * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation. May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency dependency, DependencyFilter dependencyFilter) {
     CollectRequest collectRequest = new CollectRequest();
     collectRequest.setRoot(dependency);
-    collectRequest.setRepositories(Lists.newArrayList(new RemoteRepository.Builder(
-                                                                                   MULE_PUBLIC_REPO_ID,
-                                                                                   "remote",
-                                                                                   REPOSITORY_MULESOFT_ORG)
-                                                                                       .setSnapshotPolicy(
-                                                                                                          new RepositoryPolicy(false,
-                                                                                                                               UPDATE_POLICY_INTERVAL,
-                                                                                                                               CHECKSUM_POLICY_WARN))
-                                                                                       .build()));
+    collectRequest.setRepositories(getRemoteRepositories());
 
     DependencyNode node;
     try {
@@ -132,13 +126,64 @@ public class LocalRepositoryService {
         dependencyRequest.setFilter(dependencyFilter);
       }
 
-      system.resolveDependencies(session, dependencyRequest);
+      node = system.resolveDependencies(session, dependencyRequest).getRoot();
     } catch (DependencyCollectionException | DependencyResolutionException e) {
       throw new RuntimeException("Error while resolving dependencies", e);
     }
 
     List<File> files = getFiles(node);
     return files;
+  }
+  /**
+   * Resolves transitive dependencies using the filter for the list of dependencies by grouping them in an imaginary root node.
+   *
+   * @param dependencies {@link List} of {@link Dependency} to collect its transitive dependencies
+   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation. May be {@code null} to no filter
+   * @return a {@link List} of {@link File}s for each dependency resolved
+   */
+  public List<File> resolveDependencies(List<Dependency> dependencies, DependencyFilter dependencyFilter) {
+    CollectRequest collectRequest = new CollectRequest();
+    collectRequest.setDependencies(dependencies);
+    collectRequest.setRepositories(getRemoteRepositories());
+
+    DependencyNode node;
+    try {
+      node = system.collectDependencies(session, collectRequest).getRoot();
+      DependencyRequest dependencyRequest = new DependencyRequest();
+      dependencyRequest.setRoot(node);
+      dependencyRequest.setCollectRequest(collectRequest);
+      if (dependencyFilter != null) {
+        dependencyRequest.setFilter(dependencyFilter);
+      }
+
+      node = system.resolveDependencies(session, dependencyRequest).getRoot();
+    } catch (DependencyCollectionException | DependencyResolutionException e) {
+      throw new RuntimeException("Error while resolving dependencies", e);
+    }
+
+    List<File> files = getFiles(node);
+    return files;
+  }
+
+  private ArrayList<RemoteRepository> getRemoteRepositories() {
+    return Lists.newArrayList(new RemoteRepository.Builder(
+        MULE_PUBLIC_REPO_ID,
+        "remote",
+        REPOSITORY_MULESOFT_ORG)
+                                  .setSnapshotPolicy(
+                                      new RepositoryPolicy(false,
+                                                           UPDATE_POLICY_NEVER,
+                                                           CHECKSUM_POLICY_IGNORE))
+                                  .build());
+  }
+
+  public List<Dependency> getDirectDependencies(Artifact artifactDescriptorRequest) {
+    try {
+      ArtifactDescriptorResult descriptor = system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifactDescriptorRequest, Collections.<RemoteRepository>emptyList(), null));
+      return descriptor.getDependencies();
+    } catch (ArtifactDescriptorException e) {
+      throw new RuntimeException("Error while getting direct dependencies for " + artifactDescriptorRequest);
+    }
   }
 
   /**
@@ -166,7 +211,7 @@ public class LocalRepositoryService {
       throw new IllegalArgumentException("Maven repository cannot be supported if it is not located in the default place: <USER_HOME>"
           + M2_REPO);
     }
-    return new LocalRepository(mavenLocalRepositoryLocation);
+    return new LocalRepository(mavenLocalRepositoryLocation, "simple");
   }
 
 }

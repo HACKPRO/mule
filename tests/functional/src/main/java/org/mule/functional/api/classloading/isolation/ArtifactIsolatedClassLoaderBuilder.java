@@ -8,10 +8,9 @@
 package org.mule.functional.api.classloading.isolation;
 
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
+import org.mule.functional.classloading.isolation.classification.DefaultClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
 import org.mule.functional.classloading.isolation.maven.DefaultMavenMultiModuleArtifactMapping;
-import org.mule.functional.classloading.isolation.maven.DependencyGraphMavenDependenciesResolver;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,9 +40,8 @@ import java.util.Set;
  */
 public class ArtifactIsolatedClassLoaderBuilder {
 
-  private ClassPathClassifier classPathClassifier = new AetherClassPathClassifier();
-  //private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
-  private MavenDependenciesResolver mavenDependenciesResolver = new DependencyGraphMavenDependenciesResolver();
+  private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
+  private MavenDependenciesResolver mavenDependenciesResolver;
   private ClassPathUrlProvider classPathUrlProvider = new ClassPathUrlProvider();
   private MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping = new DefaultMavenMultiModuleArtifactMapping();
 
@@ -55,6 +53,15 @@ public class ArtifactIsolatedClassLoaderBuilder {
   private List<String> extraBootPackages;
   private List<String> extensionBasePackages;
   private Set<Class> exportClasses;
+
+  // Aether
+  private List<String> pluginCoordinates;
+
+
+  public ArtifactIsolatedClassLoaderBuilder setPluginCoordinates(List<String> pluginCoordinates) {
+    this.pluginCoordinates = pluginCoordinates;
+    return this;
+  }
 
   /**
    * Sets the {@link ClassPathClassifier} implementation to be used by the builder.
@@ -178,16 +185,15 @@ public class ArtifactIsolatedClassLoaderBuilder {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder has to be set");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder has to be set");
     checkNotNull(classPathUrlProvider, "classPathUrlProvider has to be set");
-    checkNotNull(mavenDependenciesResolver, "mavenDependenciesResolver has to be set");
     checkNotNull(mavenMultiModuleArtifactMapping, "mavenMultiModuleArtifactMapping has to be set");
 
     ClassPathClassifierContext context;
     try {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
-                                         mavenDependenciesResolver.buildDependencies(), mavenMultiModuleArtifactMapping,
-                                         //null, mavenMultiModuleArtifactMapping,
-                                         exclusions, extraBootPackages, extensionBasePackages, exportClasses);
+                                         mavenDependenciesResolver != null ? mavenDependenciesResolver.buildDependencies() : null, mavenMultiModuleArtifactMapping,
+                                         exclusions, extraBootPackages, extensionBasePackages, exportClasses,
+                                         pluginCoordinates);
     } catch (IOException e) {
       throw new RuntimeException("Error while creating the classification context", e);
     }

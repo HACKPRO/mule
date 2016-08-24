@@ -11,8 +11,14 @@ import static java.util.Collections.emptyList;
 import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
 
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.List;
 
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Parent;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.repository.WorkspaceReader;
 import org.eclipse.aether.repository.WorkspaceRepository;
@@ -28,10 +34,10 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
 
   public static final String WORKSPACE = "workspace";
   public static final String ZIP = "zip";
+  public static final String REDUCED_POM_XML = "dependency-reduced-pom.xml";
   private static final String JAR = "jar";
   private static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
-  public static final String REDUCED_POM_XML = "dependency-reduced-pom.xml";
   private static final String TEST_JAR = "test-jar";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -56,11 +62,14 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       String folder = mavenMultiModuleArtifactMapping.getFolderName(artifact.getArtifactId());
       File artifactFile = null;
       if (artifact.getExtension().equals(POM)) {
-        //TODO find a way to get MavenModel and check if maven-shade-plugin is there to fail if the reduced pom is not generated!
-        File reducedPom = new File(folder, REDUCED_POM_XML);
-        if (reducedPom.exists()) {
+        if (hasMavenShadePlugin(new File(folder, POM_XML))) {
+          File reducedPom = new File(folder, REDUCED_POM_XML);
+          if (!reducedPom.exists()) {
+            throw new IllegalStateException(artifact + " has in its build configure maven-shade-plugin but the " + REDUCED_POM_XML + " is not present. Run the plugin first.");
+          }
           artifactFile = reducedPom;
-        } else {
+        }
+        else {
           artifactFile = new File(folder, POM_XML);
         }
       } else if (artifact.getExtension().equals(JAR) || artifact.getExtension().equals(ZIP)) {
@@ -72,14 +81,14 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
         return artifactFile.getAbsoluteFile();
       }
       if (logger.isTraceEnabled()) {
-        logger.trace("Mapping for artifactId '{}' could be wrong, it is going to be resolved using local repository", artifact);
+        //logger.trace("Mapping for artifactId '{}' could be wrong, it is going to be resolved using local repository", artifact);
       }
       return null;
     } catch (IllegalArgumentException e) {
       if (logger.isTraceEnabled()) {
-        logger.trace(
-            "Couldn't get from workspace the location for artifactId '{}', it is going to be resolved using local repository",
-            artifact);
+        //logger.trace(
+        //             "Couldn't get from workspace the location for artifactId '{}', it is going to be resolved using local repository",
+        //             artifact);
       }
       return null;
     }
@@ -88,6 +97,44 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
   @Override
   public List<String> findVersions(Artifact artifact) {
     return emptyList();
+  }
+
+  public boolean hasMavenShadePlugin(File pomFile) {
+    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
+
+    if (pomFile != null && pomFile.exists()) {
+      FileReader reader = null;
+
+      try {
+        reader = new FileReader(pomFile);
+        Model model = mavenReader.read(reader);
+        model.setPomFile(pomFile);
+
+        if (model.getBuild() != null) {
+          for (Plugin plugin : model.getBuild().getPlugins()) {
+            if (plugin.getArtifactId().equals("maven-shade-plugin")) {
+              return true;
+            }
+          }
+        }
+
+        Parent parent = model.getParent();
+        if (parent != null) {
+          File parentPom = new File(pomFile.getParent(), parent.getRelativePath());
+          return hasMavenShadePlugin(parentPom);
+        }
+      } catch (Exception e) {
+        throw new RuntimeException("Error while reading Maven model for pom file: " + pomFile, e);
+      } finally {
+        try {
+          reader.close();
+        } catch (IOException e) {
+          // Nothing to do...
+        }
+      }
+    }
+
+    return false;
   }
 
 }

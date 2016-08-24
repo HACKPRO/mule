@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
  *
  * @since 4.0
  */
-public class LoggerRepositoryListener  extends AbstractRepositoryListener {
+public class LoggerRepositoryListener extends AbstractRepositoryListener {
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -32,7 +32,7 @@ public class LoggerRepositoryListener  extends AbstractRepositoryListener {
 
   public void artifactDescriptorInvalid(RepositoryEvent event) {
     logger.trace("Invalid artifact descriptor for " + event.getArtifact() + ": "
-                    + event.getException().getMessage());
+        + event.getException().getMessage());
   }
 
   public void artifactDescriptorMissing(RepositoryEvent event) {

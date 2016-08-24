@@ -16,15 +16,17 @@ import static org.mule.extension.email.util.EmailTestUtils.EMAIL_SUBJECT;
 import static org.mule.extension.email.util.EmailTestUtils.JUANI_EMAIL;
 import static org.mule.extension.email.util.EmailTestUtils.setUpServer;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
+import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.tck.junit4.rule.DynamicPort;
 
 import com.icegreen.greenmail.user.GreenMailUser;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 
+import org.apache.commons.lang3.BooleanUtils;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-
+@ArtifactClassLoaderRunnerConfig(useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-email:jar:4.0-SNAPSHOT")
 public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule
@@ -42,6 +44,8 @@ public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestC
     server = new GreenMail(serverSetup);
     server.start();
     user = server.setUser(JUANI_EMAIL, JUANI_EMAIL, "password");
+
+    BooleanUtils.isTrue(true);
   }
 
   @Override

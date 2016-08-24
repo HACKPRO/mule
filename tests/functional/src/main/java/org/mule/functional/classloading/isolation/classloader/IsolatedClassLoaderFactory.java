@@ -13,8 +13,9 @@ import static org.mule.runtime.core.api.config.MuleProperties.MULE_LOG_VERBOSE_C
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
 import static org.mule.runtime.module.artifact.classloader.ClassLoaderLookupStrategy.PARENT_FIRST;
 import static org.mule.runtime.module.extension.internal.ExtensionProperties.EXTENSION_MANIFEST_FILE_NAME;
-import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
+import static org.springframework.beans.BeanUtils.findMethod;
 import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
+import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
 import org.mule.runtime.container.internal.ClasspathModuleDiscoverer;
 import org.mule.runtime.container.internal.ContainerClassLoaderFilterFactory;
@@ -36,6 +37,8 @@ import org.mule.runtime.module.artifact.util.FileJarExplorer;
 import org.mule.runtime.module.artifact.util.JarInfo;
 import org.mule.runtime.module.extension.internal.manager.DefaultExtensionManager;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -157,15 +160,36 @@ public class IsolatedClassLoaderFactory {
   protected ArtifactClassLoader createContainerArtifactClassLoader(TestContainerClassLoaderFactory testContainerClassLoaderFactory,
                                                                    ArtifactUrlClassification artifactUrlClassification) {
     logClassLoaderUrls("CONTAINER", artifactUrlClassification.getContainerUrls());
-    MuleArtifactClassLoader launcherArtifact =
-        new MuleArtifactClassLoader("launcher", new URL[0], IsolatedClassLoaderFactory.class.getClassLoader(),
-                                    new MuleClassLoaderLookupPolicy(Collections.emptyMap(), Collections.<String>emptySet()));
+    MuleArtifactClassLoader launcherArtifact = createLauncherArtifactClassLoader(artifactUrlClassification);
     final List<MuleModule> muleModules = Collections.<MuleModule>emptyList();
     ClassLoaderFilter filteredClassLoaderLauncher = new ContainerClassLoaderFilterFactory()
         .create(testContainerClassLoaderFactory.getBootPackages(), muleModules);
 
     return testContainerClassLoaderFactory
         .createContainerClassLoader(new FilteringArtifactClassLoader(launcherArtifact, filteredClassLoaderLauncher));
+  }
+
+  /**
+   * Creates the launcher application class loader to delegate from container class loader.
+   *
+   * @param artifactUrlClassification
+   * @return an {@link ArtifactClassLoader} for the launcher, parent of container
+   */
+  protected MuleArtifactClassLoader createLauncherArtifactClassLoader(ArtifactUrlClassification artifactUrlClassification) {
+    ClassLoader launcherClassLoader = IsolatedClassLoaderFactory.class.getClassLoader();
+    Method method = findMethod(launcherClassLoader.getClass(), "addURL", URL.class);
+    method.setAccessible(true);
+
+    for (URL url : artifactUrlClassification.getContainerUrls()) {
+      try {
+        method.invoke(launcherClassLoader, url);
+      } catch (IllegalAccessException | InvocationTargetException e) {
+        throw new RuntimeException("Error while appending URLs to launcher class loader", e);
+      }
+    }
+
+    return new MuleArtifactClassLoader("launcher", new URL[0], launcherClassLoader,
+                                       new MuleClassLoaderLookupPolicy(Collections.emptyMap(), Collections.<String>emptySet()));
   }
 
   private ArtifactClassLoaderFilter createArtifactClassLoaderFilter(PluginUrlClassification pluginUrlClassification,

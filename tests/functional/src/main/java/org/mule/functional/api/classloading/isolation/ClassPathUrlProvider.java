@@ -55,12 +55,12 @@ public class ClassPathUrlProvider {
   }
 
   /**
-   * @return Gets the urls from the {@code java.class.path} and {@code sun.boot.class.path} system properties
+   * @return Gets the urls from the {@code sun.boot.class.path} and {@code java.class.path} system properties.
    */
   public List<URL> getURLs() {
     final Set<URL> urls = new LinkedHashSet<>();
-    addUrlsFromSystemProperty(urls, "java.class.path");
     addUrlsFromSystemProperty(urls, "sun.boot.class.path");
+    addUrlsFromSystemProperty(urls, "java.class.path");
 
     if (logger.isDebugEnabled()) {
       StringBuilder builder = new StringBuilder("ClassPath:");

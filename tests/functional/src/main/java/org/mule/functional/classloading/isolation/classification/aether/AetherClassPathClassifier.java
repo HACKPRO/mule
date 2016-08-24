@@ -7,7 +7,6 @@
 
 package org.mule.functional.classloading.isolation.classification.aether;
 
-import static java.util.stream.Collectors.toList;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
 import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.classpathFilter;
@@ -20,15 +19,24 @@ import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileReader;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.filefilter.WildcardFileFilter;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Parent;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
+import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,65 +55,143 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-  public static void main(String[] args)
-      throws Exception {
-    new AetherClassPathClassifier().classify(null);
-  }
-
   @Override
   public ArtifactUrlClassification classify(ClassPathClassifierContext context) {
     LocalRepositoryService localRepositoryService = new LocalRepositoryService(context.getMavenMultiModuleArtifactMapping());
 
-    List<File> containerFiles = localRepositoryService
-        .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
-                                            PROVIDED, false, Lists.newArrayList(
-                                 new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID, MULE_EXTENSIONS_ALL_ARTIFACT_ID, "*", "pom"),
-                                 new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*", "*"))
-                             ),
-                             new PatternExclusionsDependencyFilter(//TODO seems to be an issue with javax packages and com.sun implementation
-                                                                   "com.sun.xml.bind:jaxb-impl:*"));
+    List<File> containerFiles = resolveContainerDependencies(localRepositoryService);
     List<URL> containerUrls = toURLs(containerFiles);
+    resolveSnapshotVersions(containerFiles, containerUrls, context.getClassPathURLs());
 
-    List<URL> fileExtensionURLs = toURLs(localRepositoryService
-        .resolveDependencies(
-                             new Dependency(new DefaultArtifact("org.mule.modules:mule-module-file:jar:4.0-SNAPSHOT"),
-                                            COMPILE),
-                             classpathFilter(COMPILE)));
+    List<PluginUrlClassification> pluginUrlClassifications = buildPluginClassifications(context, localRepositoryService);
+    List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p -> p.getUrls().stream()).collect(Collectors.toList());
 
-    List<URL> applicationUrls = context.getClassPathURLs().stream().filter(
-                                                                           url -> !url.getPath().startsWith("/Library/Java/")
-                                                                               && !url.getPath()
-                                                                                   .startsWith("/Applications/")
-                                                                               && !containerUrls.contains(url)
-                                                                               && !fileExtensionURLs.contains(url))
-        .collect(
-                 toList());
+    List<URL> applicationUrls = buildApplicationURLs(context, localRepositoryService);
 
-    //TODO: find a better way to do this
-    List<URL> appSnapshotsToBeRemoved =
-        applicationUrls.stream().filter(url -> {
-          if (url.getPath().contains("SNAPSHOT/")) {
-            File snapshotTimestampFile = new File(url.getPath());
-            File[] snapshotFiles =
-                snapshotTimestampFile.getParentFile().listFiles((FileFilter) new WildcardFileFilter("*-SNAPSHOT*.*"));
-            for (int i = 0; i < snapshotFiles.length; i++) {
-              if (containerFiles.contains(snapshotFiles[i])) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }).collect(Collectors.toList());
-    applicationUrls.removeAll(appSnapshotsToBeRemoved);
-
-    return new ArtifactUrlClassification(containerUrls, Lists.newArrayList(
-                                                                           new PluginUrlClassification("org.mule.extension.file.internal.FileConnector",
-                                                                                                       fileExtensionURLs,
-                                                                                                       Lists.newArrayList())),
+    return new ArtifactUrlClassification(containerUrls, pluginUrlClassifications,
                                          applicationUrls);
   }
 
-  private List<URL> toURLs(List<File> files) {
+  private List<URL> buildApplicationURLs(ClassPathClassifierContext context, LocalRepositoryService localRepositoryService) {
+    File pom = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
+    Model model = loadMavenModel(pom);
+
+    Artifact currentArtifact = new DefaultArtifact(model.getGroupId(), model.getArtifactId(), model.getPackaging(), model.getVersion() != null ?
+        model.getVersion() : model.getParent().getVersion());
+    List<Dependency> directDependencies = localRepositoryService
+        .getDirectDependencies(currentArtifact);
+
+    // Adding test classes!
+    List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
+    directDependencies = directDependencies.stream().filter(dependency -> {
+      String scope = dependency.getScope();
+      return !dependency.isOptional() && scope.equalsIgnoreCase(JavaScopes.TEST);
+    }).collect(Collectors.toList());
+    applicationFiles.addAll(localRepositoryService.resolveDependencies(directDependencies, new PatternExclusionsDependencyFilter(
+        "org.mule",
+        "org.mule.modules*",
+        "org.mule.transports",
+        "org.mule.mvel",
+        "org.mule.common",
+        "org.mule.extensions",
+        "junit",
+        "org.hamcrest")));
+
+    return toURLs(applicationFiles);
+  }
+
+  private Model loadMavenModel(File pomFile) {
+    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
+
+    if (pomFile != null && pomFile.exists()) {
+      FileReader reader = null;
+
+      try {
+        reader = new FileReader(pomFile);
+        Model model = mavenReader.read(reader);
+
+        Properties properties = model.getProperties();
+        properties.setProperty("basedir", pomFile.getParent());
+        Parent parent = model.getParent();
+
+        if (parent != null) {
+          File parentPom = new File(pomFile.getParent(), parent.getRelativePath());
+          Model parentProj = loadMavenModel(parentPom);
+
+          if (parentProj == null) {
+            throw new RuntimeException("Unable to load parent project at: " + parentPom.getAbsolutePath());
+          }
+
+          properties.putAll(parentProj.getProperties());
+        }
+
+        return model;
+      } catch(Exception e) {
+         throw new RuntimeException("Couldn't get Maven Artifact from pom: " + pomFile);
+      }
+      finally {
+        try {
+          reader.close();
+        } catch (IOException e) {
+          // Nothing to do..
+        }
+      }
+    }
+    throw new IllegalArgumentException("pom file doesn't exits for path: " + pomFile);
+  }
+
+  private List<PluginUrlClassification> buildPluginClassifications(ClassPathClassifierContext context,
+                                                                   LocalRepositoryService localRepositoryService) {
+    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
+    if (context.getPluginCoordinates() != null) {
+      for (String pluginCoords : context.getPluginCoordinates()) {
+        List<URL> urls = toURLs(localRepositoryService
+            .resolveDependencies(
+                                 new Dependency(new DefaultArtifact(pluginCoords),
+                                                COMPILE),
+                                 classpathFilter(COMPILE)));
+
+        pluginUrlClassifications
+            .add(new PluginUrlClassification(pluginCoords, urls, Lists.newArrayList(context.getExportClasses())));
+        // TODO generate extension metadata!
+      }
+    }
+    return pluginUrlClassifications;
+  }
+
+  private List<File> resolveContainerDependencies(LocalRepositoryService localRepositoryService) {
+    return localRepositoryService
+        .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
+                                            PROVIDED, false, Lists.newArrayList(
+                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
+                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
+                                                                                              "*", "pom"),
+                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
+                                                                                              "*"))),
+                             new PatternExclusionsDependencyFilter("junit","org.hamcrest"));
+  }
+
+  // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
+  private void resolveSnapshotVersions(List<File> containerFiles, List<URL> containerUrls, List<URL> classpath) {
+    try {
+      FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
+      for (File artifactFile : containerFiles) {
+        if (snapshotFileFilter.accept(artifactFile)) {
+          for (URL appURL : classpath) {
+            if (artifactFile.getParentFile().equals(new File(appURL.getFile()).getParentFile())) {
+              classpath.remove(appURL);
+              containerUrls.set(containerUrls.indexOf(artifactFile.toURI().toURL()), appURL);
+              break;
+            }
+          }
+        }
+      }
+    } catch (MalformedURLException e) {
+      throw new RuntimeException("Error while getting URL", e);
+    }
+  }
+
+  private List<URL> toURLs(Collection<File> files) {
     List<URL> urls = Lists.newArrayList();
     for (File file : files) {
       try {

@@ -15,6 +15,9 @@ import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
 import org.mule.functional.api.classloading.isolation.ArtifactIsolatedClassLoaderBuilder;
 import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
+import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
+import org.mule.functional.classloading.isolation.maven.DependencyGraphMavenDependenciesResolver;
+import org.mule.runtime.core.util.ValueHolder;
 import org.mule.runtime.module.artifact.classloader.ArtifactClassLoader;
 
 import java.io.File;
@@ -138,6 +141,18 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
     builder.setExtensionBasePackages(extensionBasePackages);
     builder.setExportClasses(exportedClasses);
+
+    //TODO review this!
+    List<Boolean> useAetherList = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "useEclipseAether");
+    ValueHolder<Boolean> useAether = new ValueHolder<>(false);
+    useAetherList.stream().forEach(enabled -> useAether.set(useAether.get() || enabled));
+    if (useAether.get()) {
+      builder.setClassPathClassifier(new AetherClassPathClassifier());
+      List<String[]> pluginCoordinatesFromHierarchy = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
+      builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream().collect(toList()));
+    } else {
+      builder.setMavenDependenciesResolver(new DependencyGraphMavenDependenciesResolver());
+    }
 
     return builder.build();
   }

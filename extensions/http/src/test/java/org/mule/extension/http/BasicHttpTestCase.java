@@ -14,6 +14,7 @@ import static org.junit.Assert.assertThat;
 
 import org.mule.extension.http.api.HttpRequestAttributes;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
+import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.runtime.api.message.MuleMessage;
 import org.mule.runtime.core.api.MuleEvent;
 import org.mule.runtime.core.api.MuleException;
@@ -44,6 +45,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 //TODO: MULE-9702 Remove once the tests are migrated.
+@ArtifactClassLoaderRunnerConfig(useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-http-ext:jar:4.0-SNAPSHOT")
 public class BasicHttpTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

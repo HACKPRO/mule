@@ -45,6 +45,8 @@ public class ClassPathClassifierContext {
   private final List<String> extensionBasePackages;
   private final Set<Class> exportClasses;
 
+  private final List<String> pluginCoordinates;
+
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   /**
@@ -55,7 +57,7 @@ public class ClassPathClassifierContext {
    *        null.
    * @param classPathURLs the whole set of {@link URL}s that were loaded by IDE/Maven Surefire plugin when running the test. Not
    *        null.
-   * @param dependenciesGraph the maven dependencies graph for the artifact that the test belongs to. Not null.
+   * @param dependenciesGraph the maven dependencies graph for the artifact that the test belongs to.
    * @param mavenMultiModuleArtifactMapping a mapper to get multi-module folder for artifactIds. Not null.
    * @param exclusionsList {@link List} of {@link String}'s to be used during classification for excluded packages.
    * @param extraBootPackagesList {@link List} of {@link String}'s packages to be added as boot packages to the container.
@@ -69,12 +71,12 @@ public class ClassPathClassifierContext {
                                     final List<URL> classPathURLs, final DependenciesGraph dependenciesGraph,
                                     final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping,
                                     final List<String> exclusionsList, final List<String> extraBootPackagesList,
-                                    final List<String> extensionBasePackages, final Set<Class> exportClasses)
+                                    final List<String> extensionBasePackages, final Set<Class> exportClasses,
+                                    final List<String> pluginCoordinates)
       throws IOException {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder cannot be null");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder cannot be null");
     checkNotNull(classPathURLs, "classPathURLs cannot be null");
-    //checkNotNull(dependenciesGraph, "dependenciesGraph cannot be null");
     checkNotNull(mavenMultiModuleArtifactMapping, "mavenMultiModuleArtifactMapping cannot be null");
 
     this.rootArtifactClassesFolder = rootArtifactClassesFolder;
@@ -90,6 +92,8 @@ public class ClassPathClassifierContext {
     this.extensionBasePackages = extensionBasePackages;
 
     this.exportClasses = exportClasses;
+
+    this.pluginCoordinates = pluginCoordinates;
   }
 
   /**
@@ -156,6 +160,10 @@ public class ClassPathClassifierContext {
    */
   public Set<Class> getExportClasses() {
     return exportClasses;
+  }
+
+  public List<String> getPluginCoordinates() {
+    return pluginCoordinates;
   }
 
   /**
