@@ -38,7 +38,6 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
   private static final String JAR = "jar";
   private static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
-  private static final String TEST_JAR = "test-jar";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   private final WorkspaceRepository workspaceRepository = new WorkspaceRepository(WORKSPACE);
@@ -65,17 +64,17 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
         if (hasMavenShadePlugin(new File(folder, POM_XML))) {
           File reducedPom = new File(folder, REDUCED_POM_XML);
           if (!reducedPom.exists()) {
-            throw new IllegalStateException(artifact + " has in its build configure maven-shade-plugin but the " + REDUCED_POM_XML + " is not present. Run the plugin first.");
+            throw new IllegalStateException(artifact + " has in its build configure maven-shade-plugin but the " + REDUCED_POM_XML
+                + " is not present. Run the plugin first.");
           }
           artifactFile = reducedPom;
-        }
-        else {
+        } else {
           artifactFile = new File(folder, POM_XML);
         }
+      } else if (isTestArtifact(artifact)) {
+        artifactFile = new File(new File(folder, "target"), "test-classes");
       } else if (artifact.getExtension().equals(JAR) || artifact.getExtension().equals(ZIP)) {
         artifactFile = new File(new File(folder, "target"), "classes");
-      } else if (artifact.getExtension().equals(TEST_JAR)) {
-        artifactFile = new File(new File(folder, "target"), "test-classes");
       }
       if (artifactFile != null && artifactFile.exists()) {
         return artifactFile.getAbsoluteFile();
@@ -92,6 +91,17 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       }
       return null;
     }
+  }
+
+  /**
+   * Determines whether the specified artifact refers to test classes.
+   *
+   * @param artifact The artifact to check, must not be {@code null}.
+   * @return {@code true} if the artifact refers to test classes, {@code false} otherwise.
+   */
+  private static boolean isTestArtifact(Artifact artifact) {
+    return ("test-jar".equals(artifact.getProperty("type", "")))
+        || ("jar".equals(artifact.getExtension()) && "tests".equals(artifact.getClassifier()));
   }
 
   @Override

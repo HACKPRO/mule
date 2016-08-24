@@ -143,13 +143,16 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setExportClasses(exportedClasses);
 
     //TODO review this!
-    List<Boolean> useAetherList = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "useEclipseAether");
+    List<Boolean> useAetherList =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "useEclipseAether");
     ValueHolder<Boolean> useAether = new ValueHolder<>(false);
     useAetherList.stream().forEach(enabled -> useAether.set(useAether.get() || enabled));
     if (useAether.get()) {
       builder.setClassPathClassifier(new AetherClassPathClassifier());
-      List<String[]> pluginCoordinatesFromHierarchy = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
-      builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream().collect(toList()));
+      List<String[]> pluginCoordinatesFromHierarchy =
+          getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
+      builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream()
+          .collect(toList()));
     } else {
       builder.setMavenDependenciesResolver(new DependencyGraphMavenDependenciesResolver());
     }

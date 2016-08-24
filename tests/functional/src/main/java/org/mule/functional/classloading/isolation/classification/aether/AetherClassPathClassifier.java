@@ -10,6 +10,7 @@ package org.mule.functional.classloading.isolation.classification.aether;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
 import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.classpathFilter;
+import static org.eclipse.aether.util.filter.DependencyFilterUtils.orFilter;
 import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifierContext;
@@ -64,7 +65,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     resolveSnapshotVersions(containerFiles, containerUrls, context.getClassPathURLs());
 
     List<PluginUrlClassification> pluginUrlClassifications = buildPluginClassifications(context, localRepositoryService);
-    List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p -> p.getUrls().stream()).collect(Collectors.toList());
+    //List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p -> p.getUrls().stream()).collect(Collectors.toList());
 
     List<URL> applicationUrls = buildApplicationURLs(context, localRepositoryService);
 
@@ -76,8 +77,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     File pom = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
     Model model = loadMavenModel(pom);
 
-    Artifact currentArtifact = new DefaultArtifact(model.getGroupId(), model.getArtifactId(), model.getPackaging(), model.getVersion() != null ?
-        model.getVersion() : model.getParent().getVersion());
+    Artifact currentArtifact =
+        new DefaultArtifact(model.getGroupId(), model.getArtifactId(), model.getPackaging(),
+                            model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
     List<Dependency> directDependencies = localRepositoryService
         .getDirectDependencies(currentArtifact);
 
@@ -87,15 +89,17 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       String scope = dependency.getScope();
       return !dependency.isOptional() && scope.equalsIgnoreCase(JavaScopes.TEST);
     }).collect(Collectors.toList());
-    applicationFiles.addAll(localRepositoryService.resolveDependencies(directDependencies, new PatternExclusionsDependencyFilter(
-        "org.mule",
-        "org.mule.modules*",
-        "org.mule.transports",
-        "org.mule.mvel",
-        "org.mule.common",
-        "org.mule.extensions",
-        "junit",
-        "org.hamcrest")));
+    applicationFiles
+        .addAll(localRepositoryService.resolveDependencies(directDependencies, orFilter(new PatternExclusionsDependencyFilter(
+                                                                                                                              "org.mule",
+                                                                                                                              "org.mule.modules*",
+                                                                                                                              "org.mule.transports",
+                                                                                                                              "org.mule.mvel",
+                                                                                                                              "org.mule.common",
+                                                                                                                              "org.mule.extensions",
+                                                                                                                              "junit",
+                                                                                                                              "org.hamcrest"),
+                                                                                        new PatternInclusionsDependencyFilter("org.mule.modules:mule-module-extensions-support:jar:tests:*"))));
 
     return toURLs(applicationFiles);
   }
@@ -126,10 +130,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         }
 
         return model;
-      } catch(Exception e) {
-         throw new RuntimeException("Couldn't get Maven Artifact from pom: " + pomFile);
-      }
-      finally {
+      } catch (Exception e) {
+        throw new RuntimeException("Couldn't get Maven Artifact from pom: " + pomFile);
+      } finally {
         try {
           reader.close();
         } catch (IOException e) {
@@ -168,7 +171,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                                               "*", "pom"),
                                                                                 new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
                                                                                               "*"))),
-                             new PatternExclusionsDependencyFilter("junit","org.hamcrest"));
+                             new PatternExclusionsDependencyFilter("junit", "org.hamcrest"));
   }
 
   // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
@@ -179,7 +182,6 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         if (snapshotFileFilter.accept(artifactFile)) {
           for (URL appURL : classpath) {
             if (artifactFile.getParentFile().equals(new File(appURL.getFile()).getParentFile())) {
-              classpath.remove(appURL);
               containerUrls.set(containerUrls.indexOf(artifactFile.toURI().toURL()), appURL);
               break;
             }

@@ -61,6 +61,7 @@ public class ClassPathUrlProvider {
     final Set<URL> urls = new LinkedHashSet<>();
     addUrlsFromSystemProperty(urls, "sun.boot.class.path");
     addUrlsFromSystemProperty(urls, "java.class.path");
+    addUrlsFromSystemProperty(urls, "surefire.test.class.path");
 
     if (logger.isDebugEnabled()) {
       StringBuilder builder = new StringBuilder("ClassPath:");
@@ -74,11 +75,14 @@ public class ClassPathUrlProvider {
   }
 
   protected void addUrlsFromSystemProperty(final Collection<URL> urls, final String propertyName) {
-    for (String file : System.getProperty(propertyName).split(":")) {
-      try {
-        urls.add(new File(file).toURI().toURL());
-      } catch (MalformedURLException e) {
-        throw new IllegalArgumentException("Cannot create a URL from file path: " + file, e);
+    String property = System.getProperty(propertyName);
+    if (property != null) {
+      for (String file : property.split(":")) {
+        try {
+          urls.add(new File(file).toURI().toURL());
+        } catch (MalformedURLException e) {
+          throw new IllegalArgumentException("Cannot create a URL from file path: " + file, e);
+        }
       }
     }
   }

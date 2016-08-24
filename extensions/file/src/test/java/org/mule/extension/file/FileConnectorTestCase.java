@@ -27,7 +27,8 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
-@ArtifactClassLoaderRunnerConfig(useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-file:jar:4.0-SNAPSHOT")
+@ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
+    pluginCoordinates = "org.mule.modules:mule-module-file:jar:4.0-SNAPSHOT")
 public abstract class FileConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   protected static final String HELLO_WORLD = "Hello World!";

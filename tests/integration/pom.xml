@@ -73,16 +73,20 @@
             <type>pom</type>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.mule.modules</groupId>
             <artifactId>mule-module-db</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.mule.modules</groupId>
             <artifactId>mule-module-db</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
 
         <!-- Mule Extensions - The ones that are packages as zip (plugins) have to be explicitly added
@@ -92,11 +96,14 @@
             <groupId>org.mule.modules</groupId>
             <artifactId>mule-module-validation</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.mule.modules</groupId>
             <artifactId>mule-module-file</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Test jars -->
@@ -106,8 +113,9 @@
             <artifactId>mule-module-cxf</artifactId>
             <version>${project.version}</version>
             <classifier>tests</classifier>
-            <scope>provided</scope>
+            <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-testutils</artifactId>
@@ -120,6 +128,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
         <dependency>
             <groupId>org.mule.modules</groupId>
             <artifactId>mule-module-spring-security</artifactId>
@@ -127,6 +136,7 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
+
         <!-- Needed for CXF -->
         <dependency>
             <groupId>javax.annotation</groupId>

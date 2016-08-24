@@ -26,7 +26,9 @@ import com.icegreen.greenmail.util.ServerSetup;
 import org.apache.commons.lang3.BooleanUtils;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-@ArtifactClassLoaderRunnerConfig(useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-email:jar:4.0-SNAPSHOT")
+
+@ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
+    pluginCoordinates = "org.mule.modules:mule-module-email:jar:4.0-SNAPSHOT")
 public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

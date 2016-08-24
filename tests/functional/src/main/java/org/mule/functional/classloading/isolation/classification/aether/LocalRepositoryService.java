@@ -79,9 +79,16 @@ public class LocalRepositoryService {
 
     LocalRepository localRepo = createMavenLocalRepository(userHome);
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-    session.setWorkspaceReader(new DefaultWorkspaceReader(mavenMultiModuleArtifactMapping));
+    if (enableWorkspaceReader()) {
+      session.setWorkspaceReader(new DefaultWorkspaceReader(mavenMultiModuleArtifactMapping));
+    }
 
     //session.setRepositoryListener(new LoggerRepositoryListener());
+  }
+
+  private boolean enableWorkspaceReader() {
+    // If we are running from an IDE surefire System property shouldn't be present
+    return System.getProperty("surefire.test.class.path") == null;
   }
 
   public static RepositorySystem newRepositorySystem() {
@@ -134,6 +141,7 @@ public class LocalRepositoryService {
     List<File> files = getFiles(node);
     return files;
   }
+
   /**
    * Resolves transitive dependencies using the filter for the list of dependencies by grouping them in an imaginary root node.
    *
@@ -167,19 +175,21 @@ public class LocalRepositoryService {
 
   private ArrayList<RemoteRepository> getRemoteRepositories() {
     return Lists.newArrayList(new RemoteRepository.Builder(
-        MULE_PUBLIC_REPO_ID,
-        "remote",
-        REPOSITORY_MULESOFT_ORG)
-                                  .setSnapshotPolicy(
-                                      new RepositoryPolicy(false,
-                                                           UPDATE_POLICY_NEVER,
-                                                           CHECKSUM_POLICY_IGNORE))
-                                  .build());
+                                                           MULE_PUBLIC_REPO_ID,
+                                                           "remote",
+                                                           REPOSITORY_MULESOFT_ORG)
+                                                               .setSnapshotPolicy(
+                                                                                  new RepositoryPolicy(false,
+                                                                                                       UPDATE_POLICY_NEVER,
+                                                                                                       CHECKSUM_POLICY_IGNORE))
+                                                               .build());
   }
 
   public List<Dependency> getDirectDependencies(Artifact artifactDescriptorRequest) {
     try {
-      ArtifactDescriptorResult descriptor = system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifactDescriptorRequest, Collections.<RemoteRepository>emptyList(), null));
+      ArtifactDescriptorResult descriptor =
+          system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifactDescriptorRequest,
+                                                                               Collections.<RemoteRepository>emptyList(), null));
       return descriptor.getDependencies();
     } catch (ArtifactDescriptorException e) {
       throw new RuntimeException("Error while getting direct dependencies for " + artifactDescriptorRequest);

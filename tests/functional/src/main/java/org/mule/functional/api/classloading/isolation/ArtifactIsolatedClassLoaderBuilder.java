@@ -191,7 +191,8 @@ public class ArtifactIsolatedClassLoaderBuilder {
     try {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
-                                         mavenDependenciesResolver != null ? mavenDependenciesResolver.buildDependencies() : null, mavenMultiModuleArtifactMapping,
+                                         mavenDependenciesResolver != null ? mavenDependenciesResolver.buildDependencies() : null,
+                                         mavenMultiModuleArtifactMapping,
                                          exclusions, extraBootPackages, extensionBasePackages, exportClasses,
                                          pluginCoordinates);
     } catch (IOException e) {

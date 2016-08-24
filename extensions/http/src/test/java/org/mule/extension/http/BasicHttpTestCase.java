@@ -45,7 +45,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 //TODO: MULE-9702 Remove once the tests are migrated.
-@ArtifactClassLoaderRunnerConfig(useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-http-ext:jar:4.0-SNAPSHOT")
+@ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
+    pluginCoordinates = "org.mule.modules:mule-module-http-ext:jar:4.0-SNAPSHOT")
 public class BasicHttpTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule
