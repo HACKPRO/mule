@@ -15,13 +15,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import org.mule.functional.api.classloading.isolation.MavenArtifact;
-import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 import org.mule.tck.junit4.AbstractMuleTestCase;
 import org.mule.tck.size.SmallTest;
 
 import com.google.common.collect.Lists;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
@@ -34,11 +35,11 @@ import org.junit.rules.ExpectedException;
 @SmallTest
 public class MavenArtifactToClassPathUrlsResolverTestCase extends AbstractMuleTestCase {
 
-  public static final String PARENT_PROJECT_FOLDER = "/parent-project/";
-  public static final String UTILS_CORE_MODULE_FOLDER = PARENT_PROJECT_FOLDER + "utils/";
+  public static final File PARENT_PROJECT_FOLDER = new File("parent-project/");
+  public static final File UTILS_CORE_MODULE_FOLDER = new File(PARENT_PROJECT_FOLDER, "utils/");
 
   private MavenArtifactToClassPathUrlsResolver urlsResolver;
-  private MavenMultiModuleArtifactMapping mapping;
+  private WorkspaceLocationResolver workspaceLocationResolver;
 
   private MavenArtifact coreArtifact;
   private MavenArtifact utilsCoreArtifact;
@@ -52,8 +53,8 @@ public class MavenArtifactToClassPathUrlsResolverTestCase extends AbstractMuleTe
 
   @Before
   public void before() throws Exception {
-    mapping = mock(MavenMultiModuleArtifactMapping.class);
-    urlsResolver = new MavenArtifactToClassPathUrlsResolver(mapping);
+    workspaceLocationResolver = mock(WorkspaceLocationResolver.class);
+    urlsResolver = new MavenArtifactToClassPathUrlsResolver(workspaceLocationResolver);
 
     commonCliArtifact = MavenArtifact.builder().withGroupId("commons-cli").withArtifactId("commons-cli").withType("jar")
         .withVersion("1.2").withScope("provided").build();
@@ -70,21 +71,21 @@ public class MavenArtifactToClassPathUrlsResolverTestCase extends AbstractMuleTe
   public void resolveURLUsingGroupIdArtifactId() throws Exception {
     assertURL(coreArtifact, Lists.newArrayList(buildArtifactUrlMock(commonCliArtifact), coreArtifactMavenRepoURL),
               coreArtifactMavenRepoURL);
-    verifyZeroInteractions(mapping);
+    verifyZeroInteractions(workspaceLocationResolver);
   }
 
   @Test
   public void resolveUrlMultiModuleMapping() throws Exception {
-    when(mapping.getFolderName(utilsCoreArtifact.getArtifactId())).thenReturn(UTILS_CORE_MODULE_FOLDER);
+    when(workspaceLocationResolver.resolvePath(utilsCoreArtifact.getArtifactId())).thenReturn(UTILS_CORE_MODULE_FOLDER);
     assertURL(utilsCoreArtifact, Lists.newArrayList(buildArtifactUrlMock(commonCliArtifact), coreArtifactMavenRepoURL,
                                                     utilsCoreArtifactMultiModuleURL),
               utilsCoreArtifactMultiModuleURL);
-    verify(mapping);
+    verify(workspaceLocationResolver);
   }
 
   @Test
   public void urlNotFoundForArtifact() throws Exception {
-    when(mapping.getFolderName(coreArtifact.getArtifactId())).thenReturn("doesnotexist-folder");
+    when(workspaceLocationResolver.resolvePath(coreArtifact.getArtifactId())).thenReturn(new File("doesnotexist-folder"));
     expectedException.expect(IllegalArgumentException.class);
     assertURL(coreArtifact, Lists.newArrayList(buildArtifactUrlMock(commonCliArtifact)), coreArtifactMavenRepoURL);
   }
@@ -108,10 +109,11 @@ public class MavenArtifactToClassPathUrlsResolverTestCase extends AbstractMuleTe
     return artifactURL;
   }
 
-  private URL buildMultiModuleUrlMock(String multiModuleFolder) throws MalformedURLException {
+  private URL buildMultiModuleUrlMock(File workspaceLocationPath) throws IOException {
     String s = File.separator;
     StringBuilder filePath = new StringBuilder();
-    filePath.append(s).append("home").append(s).append("user").append(s).append("workspace").append(multiModuleFolder)
+    filePath.append(s).append("home").append(s).append("user").append(s).append("workspace")
+        .append(workspaceLocationPath.getCanonicalPath())
         .append("target").append(s).append("classes").append(s);
 
     URL artifactURL = new URL("file", "", -1, filePath.toString());

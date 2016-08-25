@@ -23,9 +23,9 @@ import org.mule.functional.api.classloading.isolation.ClassPathClassifierContext
 import org.mule.functional.api.classloading.isolation.Configuration;
 import org.mule.functional.api.classloading.isolation.DependenciesFilter;
 import org.mule.functional.api.classloading.isolation.DependencyResolver;
-import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
 import org.mule.functional.api.classloading.isolation.TransitiveDependenciesFilter;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 import org.mule.functional.classloading.isolation.classpath.MavenArtifactToClassPathUrlsResolver;
 import org.mule.functional.junit4.infrastructure.ExtensionsTestInfrastructureDiscoverer;
 import org.mule.runtime.core.DefaultMuleContext;
@@ -92,7 +92,7 @@ public class DefaultClassPathClassifier implements ClassPathClassifier {
     logger.debug("Classification based on '{}'", context.getDependencyGraph().getRootArtifact());
 
     MavenArtifactToClassPathUrlsResolver artifactToClassPathUrlResolver =
-        new MavenArtifactToClassPathUrlsResolver(context.getMavenMultiModuleArtifactMapping());
+        new MavenArtifactToClassPathUrlsResolver(context.getWorkspaceLocationResolver());
 
     ExtendedClassPathClassifierContext extendedClassPathClassifierContext =
         new ExtendedClassPathClassifierContext(context, artifactToClassPathUrlResolver);
@@ -170,7 +170,7 @@ public class DefaultClassPathClassifier implements ClassPathClassifier {
 
         String extensionMavenArtifactId =
             getExtensionMavenArtifactId(extensionClass,
-                                        extendedContext.getClassificationContext().getMavenMultiModuleArtifactMapping());
+                                        extendedContext.getClassificationContext().getWorkspaceLocationResolver());
         isRootArtifactIdAnExtension |= extendedContext.getRootArtifact().getArtifactId().equals(extensionMavenArtifactId);
 
         pluginClassifications.add(extensionClassPathClassification(extensionsInfrastructure, extensionClass,
@@ -248,14 +248,14 @@ public class DefaultClassPathClassifier implements ClassPathClassifier {
 
   /**
    * Using the extensionClass and the location of the file source it will lookup for the maven artifact id using the
-   * {@link MavenMultiModuleArtifactMapping}.
+   * {@link WorkspaceLocationResolver}.
    *
    * @param extensionClass the class of the extension
-   * @param mavenMultiModuleMapping the maven multi module mapping
+   * @param workspaceLocationResolver the maven multi module mapping
    * @return the maven artifact id where the extension class belongs to
    */
   private String getExtensionMavenArtifactId(final Class extensionClass,
-                                             final MavenMultiModuleArtifactMapping mavenMultiModuleMapping) {
+                                             final WorkspaceLocationResolver workspaceLocationResolver) {
     File extensionSourceCodeLocation = new File(extensionClass.getProtectionDomain().getCodeSource().getLocation().getPath());
     logger.debug("Extension: '{}' loaded from path: '{}'", extensionClass.getName(), extensionSourceCodeLocation);
     String extensionMavenArtifactId;
@@ -265,8 +265,9 @@ public class DefaultClassPathClassifier implements ClassPathClassifier {
       // It is a jar file, we just get it from the pom.properties file (jars must contain it in order to be classified)
       extensionMavenArtifactId = readArtifactIdFromPomProperties(extensionSourceCodeLocation);
     } else {
-      extensionMavenArtifactId = mavenMultiModuleMapping
-          .getArtifactId(extensionSourceCodeLocation.getParentFile().getParentFile().getAbsolutePath() + separator);
+      throw new UnsupportedOperationException("not yet supported!");
+      //extensionMavenArtifactId = workspaceLocationResolver
+      //    .getArtifactId(extensionSourceCodeLocation.getParentFile().getParentFile().getAbsolutePath() + separator);
     }
 
     return extensionMavenArtifactId;

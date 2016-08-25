@@ -8,7 +8,6 @@
 package org.mule.functional.classloading.isolation.classification.aether;
 
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
-import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.classpathFilter;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.orFilter;
 import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
@@ -47,9 +46,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * It doesn't support doing something like: mvnDebug package test -pl extensions/file -am -Dtest=org.mule.extension.file.FileWriteTypeTestCase -DforkMode=none -DfailIfNoTests=false
- * See that I have disabled the WorkspaceReader in the case of maven, it should be enabled in order to support resolving to jars or target/classes or m2 installed references depending
- * if the artifact is part of the reactor. See https://github.com/takari/takari-workspace-reader/blob/master/src/main/java/io/takari/maven/workspace/GenerationsWorkspaceReader.java
+ * It doesn't support doing something like: mvnDebug package test -pl extensions/file -am
+ * -Dtest=org.mule.extension.file.FileWriteTypeTestCase -DforkMode=none -DfailIfNoTests=false See that I have disabled the
+ * WorkspaceReader in the case of maven, it should be enabled in order to support resolving to jars or target/classes or m2
+ * installed references depending if the artifact is part of the reactor. See
+ * https://github.com/takari/takari-workspace-reader/blob/master/src/main/java/io/takari/maven/workspace/GenerationsWorkspaceReader.java
  * TODO
  */
 public class AetherClassPathClassifier implements ClassPathClassifier {
@@ -66,7 +67,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   @Override
   public ArtifactUrlClassification classify(ClassPathClassifierContext context) {
     LocalRepositoryService localRepositoryService =
-        new LocalRepositoryService(context.getClassPathURLs(), context.getMavenMultiModuleArtifactMapping());
+        new LocalRepositoryService(context.getClassPathURLs(), context.getWorkspaceLocationResolver());
 
     List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
     List<PluginUrlClassification> pluginUrlClassifications = buildPluginUrlClassifications(context, localRepositoryService);
@@ -149,12 +150,12 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                     ClassPathClassifierContext context) {
     List<URL> containerUrls = toUrl(localRepositoryService
         .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
-                                            PROVIDED, false, Lists.newArrayList(
-                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
-                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
-                                                                                              "*", "pom"),
-                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
-                                                                                              "*"))),
+                                            COMPILE, false, Lists.newArrayList(
+                                                                               new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
+                                                                                             MULE_EXTENSIONS_ALL_ARTIFACT_ID,
+                                                                                             "*", "pom"),
+                                                                               new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
+                                                                                             "*"))),
                              new PatternExclusionsDependencyFilter("junit", "org.hamcrest")));
     resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
     return containerUrls;
@@ -162,9 +163,17 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
   // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
   private void resolveSnapshotVersionsFromClasspath(List<URL> resolvedURLs, List<URL> classpathURLs) {
-    Map<File, URL> classpathFolders = Maps.newHashMap();
-    classpathURLs.forEach(url -> classpathFolders.put(new File(url.getFile()).getParentFile(), url));
+    Map<File, List<URL>> classpathFolders = Maps.newHashMap();
+    classpathURLs.forEach(url -> {
+      File folder = new File(url.getFile()).getParentFile();
+      if (classpathFolders.containsKey(folder)) {
+        classpathFolders.get(folder).add(url);
+      } else {
+        classpathFolders.put(folder, Lists.newArrayList(url));
+      }
+    });
 
+    //TODO: improve this code! shame on you gfernandes! this is a terrible hack!
     FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
     ListIterator<URL> listIterator = resolvedURLs.listIterator();
     while (listIterator.hasNext()) {
@@ -172,7 +181,24 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       if (snapshotFileFilter.accept(artifactResolvedFile)) {
         File artifactResolvedFileParentFile = artifactResolvedFile.getParentFile();
         if (classpathFolders.containsKey(artifactResolvedFileParentFile)) {
-          listIterator.set(classpathFolders.get(artifactResolvedFileParentFile));
+          List<URL> urls = classpathFolders.get(artifactResolvedFileParentFile);
+          if (urls.size() == 1) {
+            listIterator.set(urls.get(0));
+          } else {
+            for (URL url : urls) {
+              if (artifactResolvedFile.getName().endsWith("-tests.jar")) {
+                if (url.getFile().endsWith("-tests.jar")) {
+                  listIterator.set(url);
+                  break;
+                }
+              } else {
+                if (!url.getFile().endsWith("-tests.jar")) {
+                  listIterator.set(url);
+                  break;
+                }
+              }
+            }
+          }
         }
       }
     }

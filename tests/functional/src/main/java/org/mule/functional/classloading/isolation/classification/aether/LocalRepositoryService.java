@@ -10,12 +10,14 @@ package org.mule.functional.classloading.isolation.classification.aether;
 import static org.apache.maven.repository.internal.MavenRepositorySystemUtils.newSession;
 import static org.eclipse.aether.repository.RepositoryPolicy.CHECKSUM_POLICY_IGNORE;
 import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_NEVER;
-import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
+import static org.mule.runtime.core.util.Preconditions.checkNotNull;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
 import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -56,9 +58,9 @@ public class LocalRepositoryService {
   public static final String REPOSITORY_MULESOFT_ORG = "repository.mulesoft.org";
   public static final String MULE_PUBLIC_REPO_ID = "mule";
 
-  // TODO: this should be configured!
   public static final String USER_HOME = "user.home";
-  private static final String M2_REPO = "/.m2/repository";
+  public static final String M2_REPO = "/.m2/repository";
+
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   private final DefaultRepositorySystemSession session;
@@ -68,9 +70,9 @@ public class LocalRepositoryService {
   /**
    * Creates an instance of the {@link LocalRepositoryService} to collect Maven dependencies.
    *
-   * @param mavenMultiModuleArtifactMapping
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace.
    */
-  public LocalRepositoryService(List<URL> classpath, MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
+  public LocalRepositoryService(List<URL> classpath, WorkspaceLocationResolver workspaceLocationResolver) {
     session = newSession();
     session.setOffline(true);
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
@@ -78,18 +80,11 @@ public class LocalRepositoryService {
 
     system = newRepositorySystem();
 
-    LocalRepository localRepo = createMavenLocalRepository(userHome);
+    LocalRepository localRepo = createMavenLocalRepository();
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-    //if (enableWorkspaceReader()) {
-    session.setWorkspaceReader(new DefaultWorkspaceReader(classpath, mavenMultiModuleArtifactMapping));
-    //}
+    session.setWorkspaceReader(new DefaultWorkspaceReader(classpath, workspaceLocationResolver));
 
-    //session.setRepositoryListener(new LoggerRepositoryListener());
-  }
-
-  private boolean enableWorkspaceReader() {
-    // If we are running from an IDE surefire System property shouldn't be present
-    return System.getProperty("surefire.test.class.path") == null;
+    session.setRepositoryListener(new LoggerRepositoryListener());
   }
 
   public static RepositorySystem newRepositorySystem() {
@@ -115,44 +110,67 @@ public class LocalRepositoryService {
   /**
    * Resolves transitive dependencies for the dependency as root node using the filter.
    *
-   * @param dependency {@link Dependency} node from to collect its dependencies
-   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation. May be {@code null} to no filter
+   * @param root {@link Dependency} node from to collect its dependencies
+   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
+   *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
-  public List<File> resolveDependencies(Dependency dependency, DependencyFilter dependencyFilter) {
-    CollectRequest collectRequest = new CollectRequest();
-    collectRequest.setRoot(dependency);
-    collectRequest.setRepositories(getRemoteRepositories());
+  public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
+    checkNotNull(root, "root cannot be null");
 
-    DependencyNode node;
-    try {
-      node = system.collectDependencies(session, collectRequest).getRoot();
-      DependencyRequest dependencyRequest = new DependencyRequest();
-      dependencyRequest.setRoot(node);
-      dependencyRequest.setCollectRequest(collectRequest);
-      if (dependencyFilter != null) {
-        dependencyRequest.setFilter(dependencyFilter);
-      }
-
-      node = system.resolveDependencies(session, dependencyRequest).getRoot();
-    } catch (DependencyCollectionException | DependencyResolutionException e) {
-      throw new RuntimeException("Error while resolving dependencies", e);
-    }
-
-    List<File> files = getFiles(node);
-    return files;
+    return resolveDependencies(root, Collections.<Dependency>emptyList(), dependencyFilter);
   }
 
   /**
-   * Resolves transitive dependencies using the filter for the list of dependencies by grouping them in an imaginary root node.
+   * Resolves transitive dependencies using the filter for the list of direct dependencies by grouping them in an imaginary root
+   * node.
    *
-   * @param dependencies {@link List} of {@link Dependency} to collect its transitive dependencies
-   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation. May be {@code null} to no filter
+   * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
+   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
+   *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
-  public List<File> resolveDependencies(List<Dependency> dependencies, DependencyFilter dependencyFilter) {
+  public List<File> resolveDependencies(List<Dependency> directDependencies, DependencyFilter dependencyFilter) {
+    checkNotNull(directDependencies, "directDependencies cannot be null");
+
+    return resolveDependencies(null, directDependencies, dependencyFilter);
+  }
+
+  /**
+   * Resolves direct dependencies for an {@link Artifact}.
+   *
+   * @param artifact {@link Artifact} to collect its direct dependencies
+   * @return a {@link List} of {@link Dependency} for each direct dependency resolved
+   */
+  public List<Dependency> getDirectDependencies(Artifact artifact) {
+    try {
+      ArtifactDescriptorResult descriptor =
+          system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifact,
+                                                                               Collections.<RemoteRepository>emptyList(), null));
+      return descriptor.getDependencies();
+    } catch (ArtifactDescriptorException e) {
+      throw new RuntimeException("Error while getting direct dependencies for " + artifact);
+    }
+  }
+
+
+  /**
+   * Resolves and filters transitive dependencies for the root and direct dependencies.
+   * <p/>
+   * If both a root dependency and direct dependencies are given, the direct dependencies will be merged with the direct
+   * dependencies from the root dependency's artifact descriptor, giving higher priority to the dependencies from the root.
+   *
+   * @param root {@link Dependency} node from to collect its dependencies
+   * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
+   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
+   *        May be {@code null} to no filter
+   * @return a {@link List} of {@link File}s for each dependency resolved
+   */
+  private List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
+                                         DependencyFilter dependencyFilter) {
     CollectRequest collectRequest = new CollectRequest();
-    collectRequest.setDependencies(dependencies);
+    collectRequest.setRoot(root);
+    collectRequest.setDependencies(directDependencies);
     collectRequest.setRepositories(getRemoteRepositories());
 
     DependencyNode node;
@@ -172,8 +190,11 @@ public class LocalRepositoryService {
 
     List<File> files = getFiles(node);
     return files;
+
   }
 
+  //TODO (gfernandes) find a way to set this, it should allow to configure a remote repo and its policy
+  // By defaul we are just disabling the remote repo (mulesoft public) defined in mule's pom.
   private ArrayList<RemoteRepository> getRemoteRepositories() {
     return Lists.newArrayList(new RemoteRepository.Builder(
                                                            MULE_PUBLIC_REPO_ID,
@@ -184,17 +205,6 @@ public class LocalRepositoryService {
                                                                                                        UPDATE_POLICY_NEVER,
                                                                                                        CHECKSUM_POLICY_IGNORE))
                                                                .build());
-  }
-
-  public List<Dependency> getDirectDependencies(Artifact artifactDescriptorRequest) {
-    try {
-      ArtifactDescriptorResult descriptor =
-          system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifactDescriptorRequest,
-                                                                               Collections.<RemoteRepository>emptyList(), null));
-      return descriptor.getDependencies();
-    } catch (ArtifactDescriptorException e) {
-      throw new RuntimeException("Error while getting direct dependencies for " + artifactDescriptorRequest);
-    }
   }
 
   /**
@@ -211,17 +221,25 @@ public class LocalRepositoryService {
   }
 
   /**
-   * Creates Maven local repository following the default location: {@code $USER_HOME/.m2/repository}
+   * Creates Maven local repository using the {@link System#getProperty(String)} {@code localRepository} or following the default
+   * location: {@code $USER_HOME/.m2/repository} if no property set.
    *
-   * @param userHome location of the userHome from system properties
    * @return a {@link LocalRepository} that points to the local m2 repository folder
    */
-  private LocalRepository createMavenLocalRepository(String userHome) {
-    File mavenLocalRepositoryLocation = new File(userHome, M2_REPO);
-    if (!mavenLocalRepositoryLocation.exists()) {
-      throw new IllegalArgumentException("Maven repository cannot be supported if it is not located in the default place: <USER_HOME>"
-          + M2_REPO);
+  private LocalRepository createMavenLocalRepository() {
+    String localRepositoryProperty = System.getProperty("localRepository");
+    if (localRepositoryProperty == null) {
+      localRepositoryProperty = userHome + M2_REPO;
+      logger.debug("System property 'localRepository' not set, using Maven default location");
     }
+
+    logger.debug("Using Maven localRepository: '{}'", localRepositoryProperty);
+    File mavenLocalRepositoryLocation = new File(localRepositoryProperty);
+    if (!mavenLocalRepositoryLocation.exists()) {
+      throw new IllegalArgumentException("Maven repository location couldn't be found, please check your configuration");
+    }
+    // We have to set to use a "simple" aether local repository so it will not cache artifacts (enhanced is supported for doing
+    // operations such install).
     return new LocalRepository(mavenLocalRepositoryLocation, "simple");
   }
 

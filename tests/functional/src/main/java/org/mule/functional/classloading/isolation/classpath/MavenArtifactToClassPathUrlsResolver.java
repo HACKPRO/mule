@@ -8,7 +8,7 @@
 package org.mule.functional.classloading.isolation.classpath;
 
 import org.mule.functional.api.classloading.isolation.MavenArtifact;
-import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
 import java.io.File;
 import java.net.URL;
@@ -23,15 +23,15 @@ import java.util.Optional;
  */
 public class MavenArtifactToClassPathUrlsResolver {
 
-  private final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping;
+  private final WorkspaceLocationResolver workspaceLocationResolver;
 
   /**
-   * Creates an instance of the resolver that uses a {@link MavenMultiModuleArtifactMapping} mapper for multi-module artifacts.
+   * Creates an instance of the resolver that uses a {@link WorkspaceLocationResolver} mapper for multi-module artifacts.
    *
-   * @param mavenMultiModuleArtifactMapping the mapper for multi-module artifacts.
+   * @param workspaceLocationResolver the mapper for multi-module artifacts.
    */
-  public MavenArtifactToClassPathUrlsResolver(MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
-    this.mavenMultiModuleArtifactMapping = mavenMultiModuleArtifactMapping;
+  public MavenArtifactToClassPathUrlsResolver(WorkspaceLocationResolver workspaceLocationResolver) {
+    this.workspaceLocationResolver = workspaceLocationResolver;
   }
 
   /**
@@ -63,7 +63,7 @@ public class MavenArtifactToClassPathUrlsResolver {
    */
   private URL getModuleURL(final MavenArtifact artifact, final List<URL> urls) {
     final StringBuilder moduleFolder =
-        new StringBuilder(mavenMultiModuleArtifactMapping.getFolderName(artifact.getArtifactId())).append("target/");
+        new StringBuilder(workspaceLocationResolver.resolvePath(artifact.getArtifactId()).getAbsolutePath()).append("/target/");
 
     // Fix to handle when running test during an install phase due to maven builds the classpath pointing out to packaged files
     // instead of classes folders.

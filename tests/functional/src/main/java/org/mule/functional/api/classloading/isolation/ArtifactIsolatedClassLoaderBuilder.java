@@ -10,7 +10,7 @@ package org.mule.functional.api.classloading.isolation;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import org.mule.functional.classloading.isolation.classification.DefaultClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
-import org.mule.functional.classloading.isolation.maven.DefaultMavenMultiModuleArtifactMapping;
+import org.mule.functional.classloading.isolation.maven.AutoDiscoverWorkspaceLocationResolver;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Set;
  * {@link ClassLoader}</li>
  * <li>{@link MavenDependenciesResolver}: builds the dependency graph used by the classification in order to get the dependencies
  * for the different Maven artifacts</li>
- * <li>{@link MavenMultiModuleArtifactMapping}: maps an artifactId with a local folder in a multi-module Maven project style</li>
+ * <li>{@link WorkspaceLocationResolver}: resolves paths, location for Maven project from workspace</li>
  * </ul>
  * For each of these extension points there is a default implementation already provided with this API.
  * <p/>
@@ -43,7 +43,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
   private MavenDependenciesResolver mavenDependenciesResolver;
   private ClassPathUrlProvider classPathUrlProvider = new ClassPathUrlProvider();
-  private MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping = new DefaultMavenMultiModuleArtifactMapping();
+  private WorkspaceLocationResolver workspaceLocationResolver = new AutoDiscoverWorkspaceLocationResolver();
 
   private IsolatedClassLoaderFactory isolatedClassLoaderFactory = new IsolatedClassLoaderFactory();
 
@@ -97,13 +97,13 @@ public class ArtifactIsolatedClassLoaderBuilder {
   }
 
   /**
-   * Sets the {@link MavenMultiModuleArtifactMapping} implementation to be used by the builder.
+   * Sets the {@link WorkspaceLocationResolver} implementation to be used by the builder.
    *
-   * @param mavenMultiModuleArtifactMapping
+   * @param workspaceLocationResolver
    * @return this
    */
-  public ArtifactIsolatedClassLoaderBuilder setMavenMultiModuleArtifactMapping(final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
-    this.mavenMultiModuleArtifactMapping = mavenMultiModuleArtifactMapping;
+  public ArtifactIsolatedClassLoaderBuilder setWorkspaceLocationResolver(final WorkspaceLocationResolver workspaceLocationResolver) {
+    this.workspaceLocationResolver = workspaceLocationResolver;
     return this;
   }
 
@@ -185,14 +185,14 @@ public class ArtifactIsolatedClassLoaderBuilder {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder has to be set");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder has to be set");
     checkNotNull(classPathUrlProvider, "classPathUrlProvider has to be set");
-    checkNotNull(mavenMultiModuleArtifactMapping, "mavenMultiModuleArtifactMapping has to be set");
+    checkNotNull(workspaceLocationResolver, "workspaceLocationResolver has to be set");
 
     ClassPathClassifierContext context;
     try {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
                                          mavenDependenciesResolver != null ? mavenDependenciesResolver.buildDependencies() : null,
-                                         mavenMultiModuleArtifactMapping,
+                                         workspaceLocationResolver,
                                          exclusions, extraBootPackages, extensionBasePackages, exportClasses,
                                          pluginCoordinates);
     } catch (IOException e) {

@@ -8,7 +8,7 @@
 package org.mule.functional.classloading.isolation.classification.aether;
 
 import static java.util.Collections.emptyList;
-import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMapping;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
 import java.io.File;
 import java.io.FileReader;
@@ -35,20 +35,18 @@ import org.slf4j.LoggerFactory;
 public class DefaultWorkspaceReader implements WorkspaceReader {
 
   public static final String WORKSPACE = "workspace";
-  public static final String ZIP = "zip";
   public static final String REDUCED_POM_XML = "dependency-reduced-pom.xml";
-  private static final String JAR = "jar";
   private static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   private final WorkspaceRepository workspaceRepository = new WorkspaceRepository(WORKSPACE);
-  private final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping;
+  private final WorkspaceLocationResolver workspaceLocationResolver;
   private final List<URL> classpath;
 
-  public DefaultWorkspaceReader(List<URL> classpath, MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
+  public DefaultWorkspaceReader(List<URL> classpath, WorkspaceLocationResolver workspaceLocationResolver) {
     this.classpath = classpath;
-    this.mavenMultiModuleArtifactMapping = mavenMultiModuleArtifactMapping;
+    this.workspaceLocationResolver = workspaceLocationResolver;
   }
 
   @Override
@@ -61,57 +59,51 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
     if (!artifact.isSnapshot()) {
       return null;
     }
-    try {
-      String folder = mavenMultiModuleArtifactMapping.getFolderName(artifact.getArtifactId());
-      File artifactFile = null;
-      if (artifact.getExtension().equals(POM)) {
-        if (hasMavenShadePlugin(new File(folder, POM_XML))) {
-          File reducedPom = new File(folder, REDUCED_POM_XML);
-          if (!reducedPom.exists()) {
-            throw new IllegalStateException(artifact + " has in its build configure maven-shade-plugin but the " + REDUCED_POM_XML
-                + " is not present. Run the plugin first.");
-          }
-          artifactFile = reducedPom;
-        } else {
-          artifactFile = new File(folder, POM_XML);
-        }
-        //} else if (isTestArtifact(artifact)) {
-        //  artifactFile = new File(new File(folder, "target"), "test-classes");
-        //} else if (artifact.getExtension().equals(JAR) || artifact.getExtension().equals(ZIP)) {
-        //  artifactFile = new File(new File(folder, "target"), "classes");
-      } else {
-        artifactFile = findClassPathURL(artifact, classpath);
-      }
-      if (artifactFile != null && artifactFile.exists()) {
-        return artifactFile.getAbsoluteFile();
-      }
-      if (logger.isTraceEnabled()) {
-        //logger.trace("Mapping for artifactId '{}' could be wrong, it is going to be resolved using local repository", artifact);
-      }
-      return null;
-    } catch (IllegalArgumentException e) {
-      if (logger.isTraceEnabled()) {
-        //logger.trace(
-        //             "Couldn't get from workspace the location for artifactId '{}', it is going to be resolved using local repository",
-        //             artifact);
-      }
+    File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact.getArtifactId());
+    if (workspaceArtifactPath == null) {
+      // cannot be resolved in workspace, delegate to local repository
       return null;
     }
+    File artifactFile;
+    if (artifact.getExtension().equals(POM)) {
+      if (hasMavenShadePlugin(new File(workspaceArtifactPath, POM_XML))) {
+        File reducedPom = new File(workspaceArtifactPath, REDUCED_POM_XML);
+        if (!reducedPom.exists()) {
+          throw new IllegalStateException(artifact + " has in its build configure the maven-shade-plugin but the "
+              + REDUCED_POM_XML
+              + " is not present. Run the plugin first.");
+        }
+        artifactFile = reducedPom;
+      } else {
+        artifactFile = new File(workspaceArtifactPath, POM_XML);
+      }
+    } else {
+      artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classpath);
+    }
+    if (artifactFile != null && artifactFile.exists()) {
+      return artifactFile.getAbsoluteFile();
+    }
+    return null;
   }
 
+  @Override
+  public List<String> findVersions(Artifact artifact) {
+    return emptyList();
+  }
 
   /**
-   * Looks for a matching {@link URL} for the artifact but resolving it as multi-module artifact. It also supports to look for
+   * Looks for a matching {@link URL} for the artifact but resolving it from workspace location. It also supports to look for
    * jars or classes depending if the artifacts were packaged or not.
    *
    * @param artifact to be used in order to find the {@link URL} in list of urls
    * @param classpath a list of {@link URL} obtained from the classpath
    * @throws IllegalArgumentException if couldn't find a mapping URL either
-   * @return {@link File} that represents the {@link Artifact} passed
+   * @return {@link File} that represents the {@link Artifact} passed or null
    */
-  private File findClassPathURL(final Artifact artifact, final List<URL> classpath) {
+  //TODO move logic to get from workspace resolver the path and then call this method to lookClasspathURL
+  private File findClassPathURL(final Artifact artifact, final File workspaceArtifactPath, final List<URL> classpath) {
     final StringBuilder moduleFolder =
-        new StringBuilder(mavenMultiModuleArtifactMapping.getFolderName(artifact.getArtifactId())).append("/target/");
+        new StringBuilder(workspaceArtifactPath.getAbsolutePath()).append("/target/");
 
     // Fix to handle when running test during an install phase due to maven builds the classpath pointing out to packaged files
     // instead of classes folders.
@@ -144,14 +136,9 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
    * @param artifact The artifact to check, must not be {@code null}.
    * @return {@code true} if the artifact refers to test classes, {@code false} otherwise.
    */
-  private static boolean isTestArtifact(Artifact artifact) {
+  private boolean isTestArtifact(Artifact artifact) {
     return ("test-jar".equals(artifact.getProperty("type", "")))
         || ("jar".equals(artifact.getExtension()) && "tests".equals(artifact.getClassifier()));
-  }
-
-  @Override
-  public List<String> findVersions(Artifact artifact) {
-    return emptyList();
   }
 
   public boolean hasMavenShadePlugin(File pomFile) {

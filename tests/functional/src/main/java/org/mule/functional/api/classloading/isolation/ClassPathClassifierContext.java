@@ -39,7 +39,7 @@ public class ClassPathClassifierContext {
   private final File rootArtifactTestClassesFolder;
   private final List<URL> classPathURLs;
   private final DependenciesGraph dependenciesGraph;
-  private final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping;
+  private final WorkspaceLocationResolver workspaceLocationResolver;
   private final Predicate<MavenArtifact> exclusions;
   private final Set<String> extraBootPackages;
   private final List<String> extensionBasePackages;
@@ -58,7 +58,7 @@ public class ClassPathClassifierContext {
    * @param classPathURLs the whole set of {@link URL}s that were loaded by IDE/Maven Surefire plugin when running the test. Not
    *        null.
    * @param dependenciesGraph the maven dependencies graph for the artifact that the test belongs to.
-   * @param mavenMultiModuleArtifactMapping a mapper to get multi-module folder for artifactIds. Not null.
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} for artifactIds. Not null.
    * @param exclusionsList {@link List} of {@link String}'s to be used during classification for excluded packages.
    * @param extraBootPackagesList {@link List} of {@link String}'s packages to be added as boot packages to the container.
    * @param extensionBasePackages {@link List} of {@link String}'s base packages to be used for discovering extensions.
@@ -69,7 +69,7 @@ public class ClassPathClassifierContext {
    */
   public ClassPathClassifierContext(final File rootArtifactClassesFolder, final File rootArtifactTestClassesFolder,
                                     final List<URL> classPathURLs, final DependenciesGraph dependenciesGraph,
-                                    final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping,
+                                    final WorkspaceLocationResolver workspaceLocationResolver,
                                     final List<String> exclusionsList, final List<String> extraBootPackagesList,
                                     final List<String> extensionBasePackages, final Set<Class> exportClasses,
                                     final List<String> pluginCoordinates)
@@ -77,13 +77,13 @@ public class ClassPathClassifierContext {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder cannot be null");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder cannot be null");
     checkNotNull(classPathURLs, "classPathURLs cannot be null");
-    checkNotNull(mavenMultiModuleArtifactMapping, "mavenMultiModuleArtifactMapping cannot be null");
+    checkNotNull(workspaceLocationResolver, "workspaceLocationResolver cannot be null");
 
     this.rootArtifactClassesFolder = rootArtifactClassesFolder;
     this.rootArtifactTestClassesFolder = rootArtifactTestClassesFolder;
     this.classPathURLs = classPathURLs;
     this.dependenciesGraph = dependenciesGraph;
-    this.mavenMultiModuleArtifactMapping = mavenMultiModuleArtifactMapping;
+    this.workspaceLocationResolver = workspaceLocationResolver;
 
     Properties excludedProperties = getExcludedProperties();
     this.exclusions = createExclusionsPredicate(exclusionsList, excludedProperties);
@@ -125,10 +125,10 @@ public class ClassPathClassifierContext {
   }
 
   /**
-   * @return {@link MavenMultiModuleArtifactMapping} mapper for artifactIds and multi-module folders.
+   * @return {@link WorkspaceLocationResolver} resolver for artifactIds folders.
    */
-  public MavenMultiModuleArtifactMapping getMavenMultiModuleArtifactMapping() {
-    return mavenMultiModuleArtifactMapping;
+  public WorkspaceLocationResolver getWorkspaceLocationResolver() {
+    return workspaceLocationResolver;
   }
 
   /**
