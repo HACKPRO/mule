@@ -15,6 +15,7 @@ import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMa
 import com.google.common.collect.Lists;
 
 import java.io.File;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -69,7 +70,7 @@ public class LocalRepositoryService {
    *
    * @param mavenMultiModuleArtifactMapping
    */
-  public LocalRepositoryService(MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
+  public LocalRepositoryService(List<URL> classpath, MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
     session = newSession();
     session.setOffline(true);
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
@@ -79,9 +80,9 @@ public class LocalRepositoryService {
 
     LocalRepository localRepo = createMavenLocalRepository(userHome);
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-    if (enableWorkspaceReader()) {
-      session.setWorkspaceReader(new DefaultWorkspaceReader(mavenMultiModuleArtifactMapping));
-    }
+    //if (enableWorkspaceReader()) {
+    session.setWorkspaceReader(new DefaultWorkspaceReader(classpath, mavenMultiModuleArtifactMapping));
+    //}
 
     //session.setRepositoryListener(new LoggerRepositoryListener());
   }

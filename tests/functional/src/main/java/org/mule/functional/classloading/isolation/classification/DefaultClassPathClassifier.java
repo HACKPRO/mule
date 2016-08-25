@@ -101,7 +101,7 @@ public class DefaultClassPathClassifier implements ClassPathClassifier {
     List<PluginUrlClassification> pluginUrlClassifications = buildPluginsUrlClassification(extendedClassPathClassifierContext);
     List<URL> containerUrls = buildContainerUrls(extendedClassPathClassifierContext, appUrls, pluginUrlClassifications);
 
-    return new ArtifactUrlClassification(containerUrls, pluginUrlClassifications, appUrls);
+    return new ArtifactUrlClassification(Lists.newArrayList(), containerUrls, pluginUrlClassifications, appUrls);
   }
 
   /**

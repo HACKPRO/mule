@@ -13,7 +13,9 @@ import org.mule.functional.api.classloading.isolation.MavenMultiModuleArtifactMa
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Parent;
@@ -42,8 +44,10 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
 
   private final WorkspaceRepository workspaceRepository = new WorkspaceRepository(WORKSPACE);
   private final MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping;
+  private final List<URL> classpath;
 
-  public DefaultWorkspaceReader(MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
+  public DefaultWorkspaceReader(List<URL> classpath, MavenMultiModuleArtifactMapping mavenMultiModuleArtifactMapping) {
+    this.classpath = classpath;
     this.mavenMultiModuleArtifactMapping = mavenMultiModuleArtifactMapping;
   }
 
@@ -71,10 +75,12 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
         } else {
           artifactFile = new File(folder, POM_XML);
         }
-      } else if (isTestArtifact(artifact)) {
-        artifactFile = new File(new File(folder, "target"), "test-classes");
-      } else if (artifact.getExtension().equals(JAR) || artifact.getExtension().equals(ZIP)) {
-        artifactFile = new File(new File(folder, "target"), "classes");
+        //} else if (isTestArtifact(artifact)) {
+        //  artifactFile = new File(new File(folder, "target"), "test-classes");
+        //} else if (artifact.getExtension().equals(JAR) || artifact.getExtension().equals(ZIP)) {
+        //  artifactFile = new File(new File(folder, "target"), "classes");
+      } else {
+        artifactFile = findClassPathURL(artifact, classpath);
       }
       if (artifactFile != null && artifactFile.exists()) {
         return artifactFile.getAbsoluteFile();
@@ -91,6 +97,45 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       }
       return null;
     }
+  }
+
+
+  /**
+   * Looks for a matching {@link URL} for the artifact but resolving it as multi-module artifact. It also supports to look for
+   * jars or classes depending if the artifacts were packaged or not.
+   *
+   * @param artifact to be used in order to find the {@link URL} in list of urls
+   * @param classpath a list of {@link URL} obtained from the classpath
+   * @throws IllegalArgumentException if couldn't find a mapping URL either
+   * @return {@link File} that represents the {@link Artifact} passed
+   */
+  private File findClassPathURL(final Artifact artifact, final List<URL> classpath) {
+    final StringBuilder moduleFolder =
+        new StringBuilder(mavenMultiModuleArtifactMapping.getFolderName(artifact.getArtifactId())).append("/target/");
+
+    // Fix to handle when running test during an install phase due to maven builds the classpath pointing out to packaged files
+    // instead of classes folders.
+    final StringBuilder explodedUrlSuffix = new StringBuilder();
+    final StringBuilder packagedUrlSuffix = new StringBuilder();
+    if (isTestArtifact(artifact)) {
+      explodedUrlSuffix.append("test-classes/");
+      packagedUrlSuffix.append(".*-tests.jar");
+    } else {
+      explodedUrlSuffix.append("classes/");
+      packagedUrlSuffix.append("^(?!.*?(?:-tests.jar)).*.jar");
+    }
+    final Optional<URL> localFile = classpath.stream().filter(url -> {
+      String path = url.getFile();
+      if (path.contains(moduleFolder)) {
+        String pathSuffix = path.substring(path.lastIndexOf(moduleFolder.toString()) + moduleFolder.length(), path.length());
+        return pathSuffix.matches(explodedUrlSuffix.toString()) || pathSuffix.matches(packagedUrlSuffix.toString());
+      }
+      return false;
+    }).findFirst();
+    if (!localFile.isPresent()) {
+      return null;
+    }
+    return new File(localFile.get().getFile());
   }
 
   /**

@@ -13,9 +13,10 @@ import static org.mule.runtime.core.api.config.MuleProperties.MULE_LOG_VERBOSE_C
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
 import static org.mule.runtime.module.artifact.classloader.ClassLoaderLookupStrategy.PARENT_FIRST;
 import static org.mule.runtime.module.extension.internal.ExtensionProperties.EXTENSION_MANIFEST_FILE_NAME;
-import static org.springframework.beans.BeanUtils.findMethod;
-import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
+import static org.springframework.util.ReflectionUtils.findField;
+import static org.springframework.util.ReflectionUtils.findMethod;
 import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
+import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
 import org.mule.runtime.container.internal.ClasspathModuleDiscoverer;
 import org.mule.runtime.container.internal.ContainerClassLoaderFilterFactory;
@@ -37,6 +38,9 @@ import org.mule.runtime.module.artifact.util.FileJarExplorer;
 import org.mule.runtime.module.artifact.util.JarInfo;
 import org.mule.runtime.module.extension.internal.manager.DefaultExtensionManager;
 
+import com.google.common.collect.Lists;
+
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -52,6 +56,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.URLClassPath;
 
 /**
  * Factory that creates a class loader hierarchy to emulate the one used in a mule standalone container.
@@ -159,30 +164,54 @@ public class IsolatedClassLoaderFactory {
    */
   protected ArtifactClassLoader createContainerArtifactClassLoader(TestContainerClassLoaderFactory testContainerClassLoaderFactory,
                                                                    ArtifactUrlClassification artifactUrlClassification) {
-    logClassLoaderUrls("CONTAINER", artifactUrlClassification.getContainerUrls());
     MuleArtifactClassLoader launcherArtifact = createLauncherArtifactClassLoader(artifactUrlClassification);
     final List<MuleModule> muleModules = Collections.<MuleModule>emptyList();
     ClassLoaderFilter filteredClassLoaderLauncher = new ContainerClassLoaderFilterFactory()
         .create(testContainerClassLoaderFactory.getBootPackages(), muleModules);
 
+    logClassLoaderUrls("CONTAINER", artifactUrlClassification.getContainerUrls());
     return testContainerClassLoaderFactory
         .createContainerClassLoader(new FilteringArtifactClassLoader(launcherArtifact, filteredClassLoaderLauncher));
   }
 
   /**
    * Creates the launcher application class loader to delegate from container class loader.
+   * It adds the {@link URL}s discovered for the container class loader and boot/launcher class loader that are not already
+   * present. This is needed due to while resolving the container class loader artifacts could be discovered that are not present
+   * in classpath due to they are not defined as dependencies.
    *
    * @param artifactUrlClassification
    * @return an {@link ArtifactClassLoader} for the launcher, parent of container
    */
   protected MuleArtifactClassLoader createLauncherArtifactClassLoader(ArtifactUrlClassification artifactUrlClassification) {
     ClassLoader launcherClassLoader = IsolatedClassLoaderFactory.class.getClassLoader();
+
+    List<URL> paths;
+    Field field = findField(launcherClassLoader.getClass(), "ucp");
+    field.setAccessible(true);
+    try {
+      URLClassPath urlClassPath = (URLClassPath) field.get(launcherClassLoader);
+
+      field = findField(urlClassPath.getClass(), "path");
+      field.setAccessible(true);
+      paths = (List<URL>) field.get(urlClassPath);
+    } catch (IllegalAccessException e) {
+      throw new RuntimeException("Error while clearing URLs to launcher class loader", e);
+    }
+
     Method method = findMethod(launcherClassLoader.getClass(), "addURL", URL.class);
     method.setAccessible(true);
 
-    for (URL url : artifactUrlClassification.getContainerUrls()) {
+    List<URL> launcherUrls = Lists.newArrayList();
+    launcherUrls.addAll(artifactUrlClassification.getBootLauncherUrls());
+    launcherUrls.addAll(artifactUrlClassification.getContainerUrls());
+
+    for (URL url : launcherUrls) {
       try {
-        method.invoke(launcherClassLoader, url);
+        if (!paths.contains(url)) {
+          logger.debug("Adding URL to launcher classloader: {}", url);
+          method.invoke(launcherClassLoader, url);
+        }
       } catch (IllegalAccessException | InvocationTargetException e) {
         throw new RuntimeException("Error while appending URLs to launcher class loader", e);
       }

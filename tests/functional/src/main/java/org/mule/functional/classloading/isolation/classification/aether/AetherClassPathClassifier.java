@@ -17,6 +17,7 @@ import org.mule.functional.api.classloading.isolation.ClassPathClassifierContext
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -26,6 +27,9 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
 import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
@@ -43,6 +47,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * It doesn't support doing something like: mvnDebug package test -pl extensions/file -am -Dtest=org.mule.extension.file.FileWriteTypeTestCase -DforkMode=none -DfailIfNoTests=false
+ * See that I have disabled the WorkspaceReader in the case of maven, it should be enabled in order to support resolving to jars or target/classes or m2 installed references depending
+ * if the artifact is part of the reactor. See https://github.com/takari/takari-workspace-reader/blob/master/src/main/java/io/takari/maven/workspace/GenerationsWorkspaceReader.java
  * TODO
  */
 public class AetherClassPathClassifier implements ClassPathClassifier {
@@ -58,22 +65,38 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
   @Override
   public ArtifactUrlClassification classify(ClassPathClassifierContext context) {
-    LocalRepositoryService localRepositoryService = new LocalRepositoryService(context.getMavenMultiModuleArtifactMapping());
+    LocalRepositoryService localRepositoryService =
+        new LocalRepositoryService(context.getClassPathURLs(), context.getMavenMultiModuleArtifactMapping());
 
-    List<File> containerFiles = resolveContainerDependencies(localRepositoryService);
-    List<URL> containerUrls = toURLs(containerFiles);
-    resolveSnapshotVersions(containerFiles, containerUrls, context.getClassPathURLs());
+    List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
+    List<PluginUrlClassification> pluginUrlClassifications = buildPluginUrlClassifications(context, localRepositoryService);
+    // List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p ->
+    // p.getUrls().stream()).collect(Collectors.toList());
+    List<URL> applicationUrls = buildApplicationUrlClassification(context, localRepositoryService);
+    List<URL> bootLauncherUrls = getBootLauncherURLs(context);
 
-    List<PluginUrlClassification> pluginUrlClassifications = buildPluginClassifications(context, localRepositoryService);
-    //List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p -> p.getUrls().stream()).collect(Collectors.toList());
-
-    List<URL> applicationUrls = buildApplicationURLs(context, localRepositoryService);
-
-    return new ArtifactUrlClassification(containerUrls, pluginUrlClassifications,
+    return new ArtifactUrlClassification(bootLauncherUrls, containerUrls, pluginUrlClassifications,
                                          applicationUrls);
   }
 
-  private List<URL> buildApplicationURLs(ClassPathClassifierContext context, LocalRepositoryService localRepositoryService) {
+  private List<URL> getBootLauncherURLs(ClassPathClassifierContext context) {
+    Optional<URL> firstArtifactURL = context.getClassPathURLs().stream()
+        .filter(
+                url -> context.getRootArtifactTestClassesFolder().getAbsolutePath()
+                    .equals(new File(url.getFile()).getAbsolutePath()))
+        .findFirst();
+    if (!firstArtifactURL.isPresent()) {
+      throw new IllegalStateException("Couldn't get Boot/Launcher URLs from classpath");
+    }
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("First URL for artifact found in classpath: " + firstArtifactURL.get());
+    }
+    return context.getClassPathURLs().subList(0, context.getClassPathURLs().indexOf(firstArtifactURL.get()));
+  }
+
+  private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
+                                                      LocalRepositoryService localRepositoryService) {
     File pom = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
     Model model = loadMavenModel(pom);
 
@@ -96,12 +119,75 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                                                                               "org.mule.transports",
                                                                                                                               "org.mule.mvel",
                                                                                                                               "org.mule.common",
-                                                                                                                              "org.mule.extensions",
-                                                                                                                              "junit",
-                                                                                                                              "org.hamcrest"),
-                                                                                        new PatternInclusionsDependencyFilter("org.mule.modules:mule-module-extensions-support:jar:tests:*"))));
+                                                                                                                              "org.mule.extensions"),
+                                                                                        new PatternInclusionsDependencyFilter(
+                                                                                                                              "org.mule*:*:jar:tests:*"))));
 
-    return toURLs(applicationFiles);
+    return toUrl(applicationFiles);
+  }
+
+  private List<PluginUrlClassification> buildPluginUrlClassifications(ClassPathClassifierContext context,
+                                                                      LocalRepositoryService localRepositoryService) {
+    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
+    if (context.getPluginCoordinates() != null) {
+      for (String pluginCoords : context.getPluginCoordinates()) {
+        List<URL> urls = toUrl(localRepositoryService
+            .resolveDependencies(
+                                 new Dependency(new DefaultArtifact(pluginCoords),
+                                                COMPILE),
+                                 classpathFilter(COMPILE)));
+
+        pluginUrlClassifications
+            .add(new PluginUrlClassification(pluginCoords, urls, Lists.newArrayList(context.getExportClasses())));
+        // TODO generate extension metadata!
+      }
+    }
+    return pluginUrlClassifications;
+  }
+
+  private List<URL> buildContainerUrlClassification(LocalRepositoryService localRepositoryService,
+                                                    ClassPathClassifierContext context) {
+    List<URL> containerUrls = toUrl(localRepositoryService
+        .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
+                                            PROVIDED, false, Lists.newArrayList(
+                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
+                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
+                                                                                              "*", "pom"),
+                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
+                                                                                              "*"))),
+                             new PatternExclusionsDependencyFilter("junit", "org.hamcrest")));
+    resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
+    return containerUrls;
+  }
+
+  // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
+  private void resolveSnapshotVersionsFromClasspath(List<URL> resolvedURLs, List<URL> classpathURLs) {
+    Map<File, URL> classpathFolders = Maps.newHashMap();
+    classpathURLs.forEach(url -> classpathFolders.put(new File(url.getFile()).getParentFile(), url));
+
+    FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
+    ListIterator<URL> listIterator = resolvedURLs.listIterator();
+    while (listIterator.hasNext()) {
+      File artifactResolvedFile = new File(listIterator.next().getFile());
+      if (snapshotFileFilter.accept(artifactResolvedFile)) {
+        File artifactResolvedFileParentFile = artifactResolvedFile.getParentFile();
+        if (classpathFolders.containsKey(artifactResolvedFileParentFile)) {
+          listIterator.set(classpathFolders.get(artifactResolvedFileParentFile));
+        }
+      }
+    }
+  }
+
+  private List<URL> toUrl(Collection<File> files) {
+    List<URL> urls = Lists.newArrayList();
+    for (File file : files) {
+      try {
+        urls.add(file.toURI().toURL());
+      } catch (MalformedURLException e) {
+        throw new IllegalArgumentException("Couldn't get URL", e);
+      }
+    }
+    return urls;
   }
 
   private Model loadMavenModel(File pomFile) {
@@ -141,67 +227,5 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       }
     }
     throw new IllegalArgumentException("pom file doesn't exits for path: " + pomFile);
-  }
-
-  private List<PluginUrlClassification> buildPluginClassifications(ClassPathClassifierContext context,
-                                                                   LocalRepositoryService localRepositoryService) {
-    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
-    if (context.getPluginCoordinates() != null) {
-      for (String pluginCoords : context.getPluginCoordinates()) {
-        List<URL> urls = toURLs(localRepositoryService
-            .resolveDependencies(
-                                 new Dependency(new DefaultArtifact(pluginCoords),
-                                                COMPILE),
-                                 classpathFilter(COMPILE)));
-
-        pluginUrlClassifications
-            .add(new PluginUrlClassification(pluginCoords, urls, Lists.newArrayList(context.getExportClasses())));
-        // TODO generate extension metadata!
-      }
-    }
-    return pluginUrlClassifications;
-  }
-
-  private List<File> resolveContainerDependencies(LocalRepositoryService localRepositoryService) {
-    return localRepositoryService
-        .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
-                                            PROVIDED, false, Lists.newArrayList(
-                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
-                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
-                                                                                              "*", "pom"),
-                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
-                                                                                              "*"))),
-                             new PatternExclusionsDependencyFilter("junit", "org.hamcrest"));
-  }
-
-  // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
-  private void resolveSnapshotVersions(List<File> containerFiles, List<URL> containerUrls, List<URL> classpath) {
-    try {
-      FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
-      for (File artifactFile : containerFiles) {
-        if (snapshotFileFilter.accept(artifactFile)) {
-          for (URL appURL : classpath) {
-            if (artifactFile.getParentFile().equals(new File(appURL.getFile()).getParentFile())) {
-              containerUrls.set(containerUrls.indexOf(artifactFile.toURI().toURL()), appURL);
-              break;
-            }
-          }
-        }
-      }
-    } catch (MalformedURLException e) {
-      throw new RuntimeException("Error while getting URL", e);
-    }
-  }
-
-  private List<URL> toURLs(Collection<File> files) {
-    List<URL> urls = Lists.newArrayList();
-    for (File file : files) {
-      try {
-        urls.add(file.toURI().toURL());
-      } catch (MalformedURLException e) {
-        throw new IllegalArgumentException("Couldn't get URL", e);
-      }
-    }
-    return urls;
   }
 }

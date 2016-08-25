@@ -12,10 +12,11 @@ import static java.util.stream.Collectors.toSet;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFrom;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFromHierarchy;
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
-import org.mule.functional.api.classloading.isolation.ArtifactIsolatedClassLoaderBuilder;
 import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
+import org.mule.functional.api.classloading.isolation.ArtifactIsolatedClassLoaderBuilder;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
 import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
+import org.mule.functional.classloading.isolation.maven.AutoDiscoverMavenMultiModuleArtifactMapping;
 import org.mule.functional.classloading.isolation.maven.DependencyGraphMavenDependenciesResolver;
 import org.mule.runtime.core.util.ValueHolder;
 import org.mule.runtime.module.artifact.classloader.ArtifactClassLoader;
@@ -141,6 +142,8 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
     builder.setExtensionBasePackages(extensionBasePackages);
     builder.setExportClasses(exportedClasses);
+
+    builder.setMavenMultiModuleArtifactMapping(new AutoDiscoverMavenMultiModuleArtifactMapping());
 
     //TODO review this!
     List<Boolean> useAetherList =
