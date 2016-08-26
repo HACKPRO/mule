@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
  * dependency resolution where dependencies are resolved only once based on a nearest algorithm.
  *
  * @since 4.0
+ *
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class DependenciesGraph {
 

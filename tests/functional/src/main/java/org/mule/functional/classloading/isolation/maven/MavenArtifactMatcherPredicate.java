@@ -18,6 +18,8 @@ import java.util.function.Predicate;
  * groutId/artifactId/type fields. It is also supported partial wildcard for startsWith for groupId and artifactId.
  *
  * @since 4.0
+ *
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class MavenArtifactMatcherPredicate implements Predicate<MavenArtifact> {
 

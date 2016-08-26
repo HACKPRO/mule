@@ -26,6 +26,7 @@ public class ArtifactUrlClassification {
   /**
    * Creates a instance with the list of {@link URL}s classified in container, plugins and application.
    *
+   * @param bootLauncherUrls list of {@link URL} that define Java and Bootstrap {@link URL}s
    * @param containerUrls list of {@link URL} that define the artifacts that would be loaded with the container
    *        {@link ClassLoader}
    * @param pluginClassificationsUrls for each plugin discovered a list of {@link URL} that define the artifacts that would be

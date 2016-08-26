@@ -87,6 +87,11 @@ public @interface ArtifactClassLoaderRunnerConfig {
    * {@link ClassLoader}. Default exclusion is already defined in {@code excluded.properties} file and by using this annotation
    * the ones defined here will be appended to those defined in file.
    *
+   * TODO: change this javadoc
+   * <pre>
+   * [groupId]:[artifactId]:[extension]:[version]
+   * </pre>
+   *
    * @return a comma separated list of groupId:artifactId:type (it does support wildcards org.mule:*:* or *:mule-core:* but only
    *         starts with for partial matching org.mule*:*:*) that would be used in order to exclude artifacts that should not be
    *         added to the application class loader neither the extension/plugin class loaders due to they will be already exposed

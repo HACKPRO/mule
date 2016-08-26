@@ -9,6 +9,7 @@ package org.mule.functional.junit4.runners;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFrom;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFromHierarchy;
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
@@ -170,7 +171,7 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
    */
   private static List<String> splitCommaSeparatedAttributeValues(String annotatedAttribute, Class<?> klass) {
     List<String> values = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, annotatedAttribute);
-    return values.stream().flatMap(value -> stream(value.split(","))).collect(toList());
+    return values.stream().flatMap(value -> stream(value.split(","))).filter(value -> !isBlank(value)).collect(toList());
   }
 
   /**

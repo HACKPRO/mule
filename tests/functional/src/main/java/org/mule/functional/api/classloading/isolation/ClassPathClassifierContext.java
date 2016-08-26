@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ClassPathClassifierContext {
 
-  public static final int GROUP_ID_ARTIFACT_ID_TYPE_PATTERN_CHUNKS = 3;
+  public static final int GROUP_ID_ARTIFACT_ID_TYPE_PATTERN_CHUNKS = 4;
   public static final String EXCLUDED_MODULES = "excluded.modules";
 
   private final File rootArtifactClassesFolder;
@@ -40,7 +40,10 @@ public class ClassPathClassifierContext {
   private final List<URL> classPathURLs;
   private final DependenciesGraph dependenciesGraph;
   private final WorkspaceLocationResolver workspaceLocationResolver;
+
   private final Predicate<MavenArtifact> exclusions;
+  private final Set<String> exclusionsList = Sets.newHashSet();
+
   private final Set<String> extraBootPackages;
   private final List<String> extensionBasePackages;
   private final Set<Class> exportClasses;
@@ -86,7 +89,17 @@ public class ClassPathClassifierContext {
     this.workspaceLocationResolver = workspaceLocationResolver;
 
     Properties excludedProperties = getExcludedProperties();
-    this.exclusions = createExclusionsPredicate(exclusionsList, excludedProperties);
+    //TODO refactor this!
+    String excludedModules = excludedProperties.getProperty(EXCLUDED_MODULES);
+    if (excludedModules != null) {
+      for (String exclusion : excludedModules.split(",")) {
+        this.exclusionsList.add(exclusion);
+      }
+    }
+    this.exclusionsList.addAll(exclusionsList);
+    this.exclusions = null;
+    //this.exclusions = createExclusionsPredicate(exclusionsList, excludedProperties);
+
     this.extraBootPackages = getExtraBootPackages(extraBootPackagesList, excludedProperties);
 
     this.extensionBasePackages = extensionBasePackages;
@@ -137,6 +150,10 @@ public class ClassPathClassifierContext {
    */
   public Predicate<MavenArtifact> getExclusions() {
     return exclusions;
+  }
+
+  public Set<String> getExclusionsList() {
+    return exclusionsList;
   }
 
   /**

@@ -64,6 +64,7 @@ import org.slf4j.LoggerFactory;
  * If the file doesn't exists it will thrown a {@link IllegalStateException} in all of its methods.
  *
  * @since 4.0
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class DependencyGraphMavenDependenciesResolver implements MavenDependenciesResolver {
 

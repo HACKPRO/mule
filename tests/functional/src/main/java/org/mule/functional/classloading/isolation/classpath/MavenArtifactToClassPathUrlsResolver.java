@@ -20,6 +20,7 @@ import java.util.Optional;
  * packages (for CI environments) and multi-module maven projects.
  *
  * @since 4.0
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class MavenArtifactToClassPathUrlsResolver {
 

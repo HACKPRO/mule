@@ -17,6 +17,7 @@ import org.mule.functional.junit4.runners.ArtifactClassLoaderRunner;
  * {@link DefaultClassPathClassifier}.
  *
  * @since 4.0
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class ExtendedClassPathClassifierContext {
 

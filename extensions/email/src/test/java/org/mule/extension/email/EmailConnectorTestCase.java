@@ -28,7 +28,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 @ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
-    pluginCoordinates = "org.mule.modules:mule-module-email:jar:4.0-SNAPSHOT")
+    pluginCoordinates = "org.mule.modules:mule-module-email:mule-extension:4.0-SNAPSHOT")
 public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

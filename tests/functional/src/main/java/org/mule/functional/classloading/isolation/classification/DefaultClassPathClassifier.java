@@ -74,6 +74,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
  * defined by the {@link ClassPathClassifierContext#getExportClasses()}.
  *
  * @since 4.0
+ * @deprecated repaced by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class DefaultClassPathClassifier implements ClassPathClassifier {
 

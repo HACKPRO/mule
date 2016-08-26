@@ -11,6 +11,8 @@ package org.mule.functional.api.classloading.isolation;
  * Resolves maven dependencies for the artifact being tested.
  *
  * @since 4.0
+ *
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public interface MavenDependenciesResolver {
 

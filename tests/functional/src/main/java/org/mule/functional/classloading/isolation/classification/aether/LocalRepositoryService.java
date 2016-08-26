@@ -13,12 +13,9 @@ import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_NEVER
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
-import com.google.common.collect.Lists;
-
 import java.io.File;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -36,7 +33,6 @@ import org.eclipse.aether.graph.DependencyNode;
 import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.repository.RemoteRepository;
-import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.resolution.ArtifactDescriptorException;
 import org.eclipse.aether.resolution.ArtifactDescriptorRequest;
 import org.eclipse.aether.resolution.ArtifactDescriptorResult;
@@ -53,10 +49,6 @@ import org.slf4j.LoggerFactory;
  * TODO:
  */
 public class LocalRepositoryService {
-
-  // TODO: this should be configured!
-  public static final String REPOSITORY_MULESOFT_ORG = "repository.mulesoft.org";
-  public static final String MULE_PUBLIC_REPO_ID = "mule";
 
   public static final String USER_HOME = "user.home";
   public static final String M2_REPO = "/.m2/repository";
@@ -87,7 +79,12 @@ public class LocalRepositoryService {
     session.setRepositoryListener(new LoggerRepositoryListener());
   }
 
-  public static RepositorySystem newRepositorySystem() {
+  /**
+   * Creates and configures the {@link RepositorySystem} to use for resolving transitive dependencies.
+   *
+   * @return {@link RepositorySystem}
+   */
+  private static RepositorySystem newRepositorySystem() {
     /*
      * Aether's components implement org.eclipse.aether.spi.locator.Service to ease manual wiring and using the pre populated
      * DefaultServiceLocator, we only MavenXpp3Reader need to register the repository connector and transporter factories.
@@ -108,6 +105,37 @@ public class LocalRepositoryService {
   }
 
   /**
+   * Gets information about an artifact like its direct dependencies and potential relocations.
+   *
+   * @param artifact the artifact requested, must not be {@code null}
+   * @return {@link ArtifactDescriptorResult} descriptor result, never {@code null}
+   * @throws {@link RuntimeException} if there was a problem while reading the descriptor
+   */
+  public ArtifactDescriptorResult readArtifactDescriptor(Artifact artifact) {
+    try {
+      ArtifactDescriptorResult descriptor =
+          system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifact,
+                                                                               Collections.<RemoteRepository>emptyList(), null));
+      return descriptor;
+    } catch (ArtifactDescriptorException e) {
+      //TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
+      throw new IllegalStateException("Couldn't read descriptor for artifact: '" + artifact
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository");
+    }
+  }
+
+  /**
+   * Resolves direct dependencies for an {@link Artifact}.
+   *
+   * @param artifact {@link Artifact} to collect its direct dependencies
+   * @return a {@link List} of {@link Dependency} for each direct dependency resolved
+   */
+  public List<Dependency> getDirectDependencies(Artifact artifact) {
+    checkNotNull(artifact, "artifact cannot be null");
+    return readArtifactDescriptor(artifact).getDependencies();
+  }
+
+  /**
    * Resolves transitive dependencies for the dependency as root node using the filter.
    *
    * @param root {@link Dependency} node from to collect its dependencies
@@ -117,7 +145,6 @@ public class LocalRepositoryService {
    */
   public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
     checkNotNull(root, "root cannot be null");
-
     return resolveDependencies(root, Collections.<Dependency>emptyList(), dependencyFilter);
   }
 
@@ -132,27 +159,8 @@ public class LocalRepositoryService {
    */
   public List<File> resolveDependencies(List<Dependency> directDependencies, DependencyFilter dependencyFilter) {
     checkNotNull(directDependencies, "directDependencies cannot be null");
-
     return resolveDependencies(null, directDependencies, dependencyFilter);
   }
-
-  /**
-   * Resolves direct dependencies for an {@link Artifact}.
-   *
-   * @param artifact {@link Artifact} to collect its direct dependencies
-   * @return a {@link List} of {@link Dependency} for each direct dependency resolved
-   */
-  public List<Dependency> getDirectDependencies(Artifact artifact) {
-    try {
-      ArtifactDescriptorResult descriptor =
-          system.readArtifactDescriptor(session, new ArtifactDescriptorRequest(artifact,
-                                                                               Collections.<RemoteRepository>emptyList(), null));
-      return descriptor.getDependencies();
-    } catch (ArtifactDescriptorException e) {
-      throw new RuntimeException("Error while getting direct dependencies for " + artifact);
-    }
-  }
-
 
   /**
    * Resolves and filters transitive dependencies for the root and direct dependencies.
@@ -171,7 +179,7 @@ public class LocalRepositoryService {
     CollectRequest collectRequest = new CollectRequest();
     collectRequest.setRoot(root);
     collectRequest.setDependencies(directDependencies);
-    collectRequest.setRepositories(getRemoteRepositories());
+    collectRequest.setRepositories(Collections.<RemoteRepository>emptyList());
 
     DependencyNode node;
     try {
@@ -191,20 +199,6 @@ public class LocalRepositoryService {
     List<File> files = getFiles(node);
     return files;
 
-  }
-
-  //TODO (gfernandes) find a way to set this, it should allow to configure a remote repo and its policy
-  // By defaul we are just disabling the remote repo (mulesoft public) defined in mule's pom.
-  private ArrayList<RemoteRepository> getRemoteRepositories() {
-    return Lists.newArrayList(new RemoteRepository.Builder(
-                                                           MULE_PUBLIC_REPO_ID,
-                                                           "remote",
-                                                           REPOSITORY_MULESOFT_ORG)
-                                                               .setSnapshotPolicy(
-                                                                                  new RepositoryPolicy(false,
-                                                                                                       UPDATE_POLICY_NEVER,
-                                                                                                       CHECKSUM_POLICY_IGNORE))
-                                                               .build());
   }
 
   /**

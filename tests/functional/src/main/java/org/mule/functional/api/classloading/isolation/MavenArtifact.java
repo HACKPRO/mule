@@ -15,6 +15,8 @@ import java.io.File;
  * Object representation of a maven artifact.
  *
  * @since 4.0
+ *
+ * @deprecated not used by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
  */
 public class MavenArtifact {
 

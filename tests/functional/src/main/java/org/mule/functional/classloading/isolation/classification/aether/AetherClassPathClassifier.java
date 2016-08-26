@@ -14,14 +14,13 @@ import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifierContext;
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
+import org.mule.functional.classloading.isolation.maven.MavenModelFactory;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileReader;
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
@@ -29,28 +28,22 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.maven.model.Model;
-import org.apache.maven.model.Parent;
-import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
+import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.graph.Exclusion;
+import org.eclipse.aether.resolution.ArtifactDescriptorResult;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * It doesn't support doing something like: mvnDebug package test -pl extensions/file -am
- * -Dtest=org.mule.extension.file.FileWriteTypeTestCase -DforkMode=none -DfailIfNoTests=false See that I have disabled the
- * WorkspaceReader in the case of maven, it should be enabled in order to support resolving to jars or target/classes or m2
- * installed references depending if the artifact is part of the reactor. See
- * https://github.com/takari/takari-workspace-reader/blob/master/src/main/java/io/takari/maven/workspace/GenerationsWorkspaceReader.java
  * TODO
  */
 public class AetherClassPathClassifier implements ClassPathClassifier {
@@ -61,6 +54,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   public static final String ORG_MULE_TESTS_GROUP_ID = "org.mule.tests";
   public static final String ORG_MULE_EXTENSIONS_GROUP_ID = "org.mule.extensions";
   public static final String MULE_EXTENSIONS_ALL_ARTIFACT_ID = "mule-extensions-all";
+  public static final String ALL_ARTIFACT_JAR_TESTS_COORDS = "*:*:jar:tests:*";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -71,9 +65,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
     List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
     List<PluginUrlClassification> pluginUrlClassifications = buildPluginUrlClassifications(context, localRepositoryService);
-    // List<URL> allPluginURLs = pluginUrlClassifications.stream().flatMap(p ->
-    // p.getUrls().stream()).collect(Collectors.toList());
-    List<URL> applicationUrls = buildApplicationUrlClassification(context, localRepositoryService);
+    List<URL> applicationUrls = buildApplicationUrlClassification(context, localRepositoryService, pluginUrlClassifications);
     List<URL> bootLauncherUrls = getBootLauncherURLs(context);
 
     return new ArtifactUrlClassification(bootLauncherUrls, containerUrls, pluginUrlClassifications,
@@ -97,9 +89,10 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
-                                                      LocalRepositoryService localRepositoryService) {
-    File pom = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
-    Model model = loadMavenModel(pom);
+                                                      LocalRepositoryService localRepositoryService,
+                                                      List<PluginUrlClassification> pluginUrlClassifications) {
+    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
+    Model model = MavenModelFactory.createMavenProject(pomFile);
 
     Artifact currentArtifact =
         new DefaultArtifact(model.getGroupId(), model.getArtifactId(), model.getPackaging(),
@@ -109,20 +102,24 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
     // Adding test classes!
     List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
+    boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
+        && pluginUrlClassifications.stream().filter(p -> p.getName().equals(currentArtifact.toString())).findFirst().isPresent();
+    if (!isRootArtifactPlugin) {
+      applicationFiles.add(context.getRootArtifactClassesFolder());
+    }
+
     directDependencies = directDependencies.stream().filter(dependency -> {
       String scope = dependency.getScope();
       return !dependency.isOptional() && scope.equalsIgnoreCase(JavaScopes.TEST);
     }).collect(Collectors.toList());
+    DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
+                                                                              ALL_ARTIFACT_JAR_TESTS_COORDS);
+    if (!context.getExclusionsList().isEmpty()) {
+      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getExclusionsList()),
+                                  dependencyFilter);
+    }
     applicationFiles
-        .addAll(localRepositoryService.resolveDependencies(directDependencies, orFilter(new PatternExclusionsDependencyFilter(
-                                                                                                                              "org.mule",
-                                                                                                                              "org.mule.modules*",
-                                                                                                                              "org.mule.transports",
-                                                                                                                              "org.mule.mvel",
-                                                                                                                              "org.mule.common",
-                                                                                                                              "org.mule.extensions"),
-                                                                                        new PatternInclusionsDependencyFilter(
-                                                                                                                              "org.mule*:*:jar:tests:*"))));
+        .addAll(localRepositoryService.resolveDependencies(directDependencies, dependencyFilter));
 
     return toUrl(applicationFiles);
   }
@@ -132,14 +129,15 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
     if (context.getPluginCoordinates() != null) {
       for (String pluginCoords : context.getPluginCoordinates()) {
+        final DefaultArtifact artifact = new DefaultArtifact(pluginCoords);
         List<URL> urls = toUrl(localRepositoryService
             .resolveDependencies(
-                                 new Dependency(new DefaultArtifact(pluginCoords),
+                                 new Dependency(artifact,
                                                 COMPILE),
                                  classpathFilter(COMPILE)));
 
         pluginUrlClassifications
-            .add(new PluginUrlClassification(pluginCoords, urls, Lists.newArrayList(context.getExportClasses())));
+            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportClasses())));
         // TODO generate extension metadata!
       }
     }
@@ -148,8 +146,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
   private List<URL> buildContainerUrlClassification(LocalRepositoryService localRepositoryService,
                                                     ClassPathClassifierContext context) {
+    ArtifactDescriptorResult muleContainerArtifactDescriptorResult =
+        localRepositoryService.readArtifactDescriptor(new DefaultArtifact(MULE_STANDALONE_ARTIFACT));
+
     List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(new Dependency(new DefaultArtifact(MULE_STANDALONE_ARTIFACT),
+        .resolveDependencies(new Dependency(muleContainerArtifactDescriptorResult.getArtifact(),
                                             COMPILE, false, Lists.newArrayList(
                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
@@ -173,7 +174,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       }
     });
 
-    //TODO: improve this code! shame on you gfernandes! this is a terrible hack!
+    // TODO: improve this code! shame on you gfernandes! this is a terrible hack!
     FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
     ListIterator<URL> listIterator = resolvedURLs.listIterator();
     while (listIterator.hasNext()) {
@@ -204,6 +205,12 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
   }
 
+  /**
+   * Converts the {@link List} of {@link File}s to {@link URL}s
+   *
+   * @param files {@link File} to get {@link URL}s
+   * @return {@link List} of {@link URL}s
+   */
   private List<URL> toUrl(Collection<File> files) {
     List<URL> urls = Lists.newArrayList();
     for (File file : files) {
@@ -216,42 +223,4 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     return urls;
   }
 
-  private Model loadMavenModel(File pomFile) {
-    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
-
-    if (pomFile != null && pomFile.exists()) {
-      FileReader reader = null;
-
-      try {
-        reader = new FileReader(pomFile);
-        Model model = mavenReader.read(reader);
-
-        Properties properties = model.getProperties();
-        properties.setProperty("basedir", pomFile.getParent());
-        Parent parent = model.getParent();
-
-        if (parent != null) {
-          File parentPom = new File(pomFile.getParent(), parent.getRelativePath());
-          Model parentProj = loadMavenModel(parentPom);
-
-          if (parentProj == null) {
-            throw new RuntimeException("Unable to load parent project at: " + parentPom.getAbsolutePath());
-          }
-
-          properties.putAll(parentProj.getProperties());
-        }
-
-        return model;
-      } catch (Exception e) {
-        throw new RuntimeException("Couldn't get Maven Artifact from pom: " + pomFile);
-      } finally {
-        try {
-          reader.close();
-        } catch (IOException e) {
-          // Nothing to do..
-        }
-      }
-    }
-    throw new IllegalArgumentException("pom file doesn't exits for path: " + pomFile);
-  }
 }

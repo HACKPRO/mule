@@ -9,18 +9,15 @@ package org.mule.functional.classloading.isolation.classification.aether;
 
 import static java.util.Collections.emptyList;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import org.mule.functional.classloading.isolation.maven.MavenModelFactory;
 
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import java.util.Optional;
 
 import org.apache.maven.model.Model;
-import org.apache.maven.model.Parent;
 import org.apache.maven.model.Plugin;
-import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.repository.WorkspaceReader;
 import org.eclipse.aether.repository.WorkspaceRepository;
@@ -35,9 +32,14 @@ import org.slf4j.LoggerFactory;
 public class DefaultWorkspaceReader implements WorkspaceReader {
 
   public static final String WORKSPACE = "workspace";
+
+  public static final String MAVEN_SHADE_PLUGIN_ARTIFACT_ID = "maven-shade-plugin";
+  public static final String ORG_APACHE_MAVEN_PLUGINS_GROUP_ID = "org.apache.maven.plugins";
   public static final String REDUCED_POM_XML = "dependency-reduced-pom.xml";
-  private static final String POM = "pom";
+
+  public static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
+
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   private final WorkspaceRepository workspaceRepository = new WorkspaceRepository(WORKSPACE);
@@ -59,17 +61,23 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
     if (!artifact.isSnapshot()) {
       return null;
     }
+
     File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact.getArtifactId());
     if (workspaceArtifactPath == null) {
-      // cannot be resolved in workspace, delegate to local repository
+      // Cannot be resolved in workspace so delegate the resolution to local repository
       return null;
     }
+
     File artifactFile;
     if (artifact.getExtension().equals(POM)) {
-      if (hasMavenShadePlugin(new File(workspaceArtifactPath, POM_XML))) {
+      Plugin shadeMavenPlugin =
+          searchForMavenShadePlugin(MavenModelFactory.createMavenProject(new File(workspaceArtifactPath, POM_XML)));
+      if (shadeMavenPlugin != null) {
+        // TODO (gfernandes) add support for reading the plugin configuration using Xpp3 Maven API
+        // MavenXpp3Reader.parsePluginConfiguration(...)
         File reducedPom = new File(workspaceArtifactPath, REDUCED_POM_XML);
         if (!reducedPom.exists()) {
-          throw new IllegalStateException(artifact + " has in its build configure the maven-shade-plugin but the "
+          throw new IllegalStateException(artifact + " has in its build configure the " + shadeMavenPlugin + " but default "
               + REDUCED_POM_XML
               + " is not present. Run the plugin first.");
         }
@@ -78,29 +86,35 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
         artifactFile = new File(workspaceArtifactPath, POM_XML);
       }
     } else {
+      // Match artifactFile from Classpath and Workspace location
       artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classpath);
     }
+
     if (artifactFile != null && artifactFile.exists()) {
       return artifactFile.getAbsoluteFile();
     }
     return null;
   }
 
+  /**
+   * Not need to specify the versions here.
+   *
+   * @param artifact to look for its versions
+   * @return an empty {@link List}
+   */
   @Override
   public List<String> findVersions(Artifact artifact) {
     return emptyList();
   }
 
   /**
-   * Looks for a matching {@link URL} for the artifact but resolving it from workspace location. It also supports to look for
-   * jars or classes depending if the artifacts were packaged or not.
+   * Looks for a matching {@link URL} for the artifact resolved in a workspace location. It also supports to look for jars or
+   * classes depending if the artifacts were packaged or not.
    *
    * @param artifact to be used in order to find the {@link URL} in list of urls
    * @param classpath a list of {@link URL} obtained from the classpath
-   * @throws IllegalArgumentException if couldn't find a mapping URL either
    * @return {@link File} that represents the {@link Artifact} passed or null
    */
-  //TODO move logic to get from workspace resolver the path and then call this method to lookClasspathURL
   private File findClassPathURL(final Artifact artifact, final File workspaceArtifactPath, final List<URL> classpath) {
     final StringBuilder moduleFolder =
         new StringBuilder(workspaceArtifactPath.getAbsolutePath()).append("/target/");
@@ -141,42 +155,29 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
         || ("jar".equals(artifact.getExtension()) && "tests".equals(artifact.getClassifier()));
   }
 
-  public boolean hasMavenShadePlugin(File pomFile) {
-    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
-
-    if (pomFile != null && pomFile.exists()) {
-      FileReader reader = null;
-
-      try {
-        reader = new FileReader(pomFile);
-        Model model = mavenReader.read(reader);
-        model.setPomFile(pomFile);
-
-        if (model.getBuild() != null) {
-          for (Plugin plugin : model.getBuild().getPlugins()) {
-            if (plugin.getArtifactId().equals("maven-shade-plugin")) {
-              return true;
-            }
-          }
-        }
-
-        Parent parent = model.getParent();
-        if (parent != null) {
-          File parentPom = new File(pomFile.getParent(), parent.getRelativePath());
-          return hasMavenShadePlugin(parentPom);
-        }
-      } catch (Exception e) {
-        throw new RuntimeException("Error while reading Maven model for pom file: " + pomFile, e);
-      } finally {
-        try {
-          reader.close();
-        } catch (IOException e) {
-          // Nothing to do...
+  /**
+   * Searches the Maven {@link Model} for the {@url https://maven.apache.org/plugins/maven-shade-plugin/} or if any of its parents
+   * has it defined.
+   *
+   * @param model Maven {@link Model} to look for the Maven Shade Plugin
+   * @return {@link Plugin} model for Maven Shade Plugin if found.
+   */
+  private Plugin searchForMavenShadePlugin(Model model) {
+    if (model.getBuild() != null) {
+      for (Plugin plugin : model.getBuild().getPlugins()) {
+        if (plugin.getGroupId().equals(ORG_APACHE_MAVEN_PLUGINS_GROUP_ID)
+            && plugin.getArtifactId().equals(MAVEN_SHADE_PLUGIN_ARTIFACT_ID)) {
+          return plugin;
         }
       }
     }
+    if (model.getParent() == null) {
+      return null;
+    }
 
-    return false;
+    return searchForMavenShadePlugin(
+                                     MavenModelFactory
+                                         .createMavenProject(new File(model.getPomFile().getParent(),
+                                                                      model.getParent().getRelativePath())));
   }
-
 }
