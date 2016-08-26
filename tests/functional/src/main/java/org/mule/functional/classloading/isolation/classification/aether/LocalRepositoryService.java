@@ -89,8 +89,8 @@ public class LocalRepositoryService {
 
   public static RepositorySystem newRepositorySystem() {
     /*
-     * Aether's components implement org.eclipse.aether.spi.locator.Service to ease manual wiring and using the prepopulated
-     * DefaultServiceLocator, we only MavenXpp3Readerneed to register the repository connector and transporter factories.
+     * Aether's components implement org.eclipse.aether.spi.locator.Service to ease manual wiring and using the pre populated
+     * DefaultServiceLocator, we only MavenXpp3Reader need to register the repository connector and transporter factories.
      */
     DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
     locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
