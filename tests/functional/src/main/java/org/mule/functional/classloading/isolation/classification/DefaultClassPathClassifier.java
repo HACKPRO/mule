@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * defined by the {@link ClassPathClassifierContext#getExportClasses()}.
  *
  * @since 4.0
- * @deprecated repaced by {@link org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier}
+ * @deprecated repaced by {@link AetherClassPathClassifier}
  */
 public class DefaultClassPathClassifier implements ClassPathClassifier {
 

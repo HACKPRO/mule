@@ -45,6 +45,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
+import org.eclipse.aether.util.repository.SimpleArtifactDescriptorPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +73,7 @@ public class LocalRepositoryService {
     session.setOffline(true);
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
+    session.setArtifactDescriptorPolicy(new SimpleArtifactDescriptorPolicy(true, true));
 
     system = newRepositorySystem();
 
@@ -151,20 +153,6 @@ public class LocalRepositoryService {
   public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
     checkNotNull(root, "root cannot be null");
     return resolveDependencies(root, Collections.<Dependency>emptyList(), dependencyFilter);
-  }
-
-  /**
-   * Resolves transitive dependencies using the filter for the list of direct dependencies by grouping them in an imaginary root
-   * node.
-   *
-   * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
-   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
-   *        May be {@code null} to no filter
-   * @return a {@link List} of {@link File}s for each dependency resolved
-   */
-  public List<File> resolveDependencies(List<Dependency> directDependencies, DependencyFilter dependencyFilter) {
-    checkNotNull(directDependencies, "directDependencies cannot be null");
-    return resolveDependencies(null, directDependencies, dependencyFilter);
   }
 
   /**

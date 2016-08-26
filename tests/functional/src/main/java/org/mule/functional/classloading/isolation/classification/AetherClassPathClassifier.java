@@ -5,7 +5,7 @@
  * LICENSE.txt file.
  */
 
-package org.mule.functional.classloading.isolation.classification.aether;
+package org.mule.functional.classloading.isolation.classification;
 
 import static java.util.stream.Collectors.toList;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
@@ -17,6 +17,8 @@ import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifierContext;
 import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
+import org.mule.functional.classloading.isolation.classification.aether.LocalRepositoryService;
+import org.mule.functional.classloading.isolation.classification.aether.PatternInclusionsDependencyFilter;
 import org.mule.functional.classloading.isolation.maven.MavenModelFactory;
 
 import com.google.common.collect.Lists;
@@ -55,7 +57,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   public static final String ORG_MULE_TESTS_GROUP_ID = "org.mule.tests";
   public static final String ORG_MULE_EXTENSIONS_GROUP_ID = "org.mule.extensions";
   public static final String MULE_EXTENSIONS_ALL_ARTIFACT_ID = "mule-extensions-all";
-  public static final String ALL_ARTIFACT_JAR_TESTS_COORDS = "*:*:jar:tests:*";
+  public static final String ALL_TESTS_JAR_ARTIFACT_COORDS = "*:*:jar:tests:*";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -64,25 +66,28 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     LocalRepositoryService localRepositoryService =
         new LocalRepositoryService(context.getClassPathURLs(), context.getWorkspaceLocationResolver());
 
-    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
-    Model model = MavenModelFactory.createMavenProject(pomFile);
-
-    Artifact currentArtifact =
-        new DefaultArtifact(model.getGroupId() != null ? model.getGroupId() : model.getParent().getGroupId(),
-                            model.getArtifactId(), model.getPackaging(),
-                            model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
+    Artifact rootArtifact = getRootArtifact(context);
     List<Dependency> directDependencies = localRepositoryService
-        .getDirectDependencies(currentArtifact);
+        .getDirectDependencies(rootArtifact);
 
     List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
     List<PluginUrlClassification> pluginUrlClassifications =
-        buildPluginUrlClassifications(context, currentArtifact, directDependencies, localRepositoryService);
-    List<URL> applicationUrls = buildApplicationUrlClassification(context, currentArtifact, directDependencies,
+        buildPluginUrlClassifications(context, rootArtifact, directDependencies, localRepositoryService);
+    List<URL> applicationUrls = buildApplicationUrlClassification(context, rootArtifact, directDependencies,
                                                                   localRepositoryService, pluginUrlClassifications);
     List<URL> bootLauncherUrls = getBootLauncherURLs(context);
 
     return new ArtifactUrlClassification(bootLauncherUrls, containerUrls, pluginUrlClassifications,
                                          applicationUrls);
+  }
+
+  private Artifact getRootArtifact(ClassPathClassifierContext context) {
+    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
+    Model model = MavenModelFactory.createMavenProject(pomFile);
+
+    return new DefaultArtifact(model.getGroupId() != null ? model.getGroupId() : model.getParent().getGroupId(),
+                               model.getArtifactId(), model.getPackaging(),
+                               model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
   }
 
   private List<URL> getBootLauncherURLs(ClassPathClassifierContext context) {
@@ -102,26 +107,13 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
-                                                      Artifact currentArtifact,
+                                                      Artifact rootArtifact,
                                                       List<Dependency> directDependencies,
                                                       LocalRepositoryService localRepositoryService,
                                                       List<PluginUrlClassification> pluginUrlClassifications) {
     List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
-    boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
-        && pluginUrlClassifications.stream().filter(p -> {
-          Artifact plugin = new DefaultArtifact(p.getName());
-          return plugin.getGroupId().equals(currentArtifact.getGroupId())
-              && plugin.getArtifactId().equals(currentArtifact.getArtifactId());
-        }).findFirst().isPresent();
-    if (!isRootArtifactPlugin) {
-      applicationFiles.add(context.getRootArtifactClassesFolder());
-    }
 
     directDependencies = directDependencies.stream()
-        // .filter(dependency -> {
-        // String scope = dependency.getScope();
-        // return !dependency.isOptional() && scope.equalsIgnoreCase(TEST);
-        // })
         .map(toTransform -> {
           if (toTransform.getScope().equals(TEST)) {
             return new Dependency(toTransform.getArtifact(), COMPILE);
@@ -129,20 +121,36 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
           return toTransform;
         }).collect(toList());
     DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
-                                                                              ALL_ARTIFACT_JAR_TESTS_COORDS);
+                                                                              ALL_TESTS_JAR_ARTIFACT_COORDS);
     if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
       dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getApplicationArtifactExclusionsCoordinates()),
                                   dependencyFilter);
     }
+
+    boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
+        && pluginUrlClassifications.stream().filter(p -> {
+          Artifact plugin = new DefaultArtifact(p.getName());
+          return plugin.getGroupId().equals(rootArtifact.getGroupId())
+              && plugin.getArtifactId().equals(rootArtifact.getArtifactId());
+        }).findFirst().isPresent();
+    if (!isRootArtifactPlugin) {
+      if (context.getRootArtifactClassesFolder().exists()) {
+        applicationFiles.add(context.getRootArtifactClassesFolder());
+      } else {
+        logger.debug("'{}' rootArtifact marked as a test artifact only, it doesn't have a target/classes folder", rootArtifact);
+        dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(rootArtifact.toString()));
+      }
+    }
+
     applicationFiles
-        .addAll(localRepositoryService.resolveDependencies(new Dependency(currentArtifact, null), directDependencies,
+        .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST), directDependencies,
                                                            dependencyFilter));
 
     return toUrl(applicationFiles);
   }
 
   private List<PluginUrlClassification> buildPluginUrlClassifications(ClassPathClassifierContext context,
-                                                                      Artifact currentArtifact,
+                                                                      Artifact rootArtifact,
                                                                       List<Dependency> directDependencies,
                                                                       LocalRepositoryService localRepositoryService) {
     List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
@@ -155,9 +163,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         String pluginArtifactId = pluginSplitCoords[1];
         String pluginVersion;
 
-        if (currentArtifact.getGroupId().equals(pluginGroupId) && currentArtifact.getArtifactId().equals(pluginArtifactId)) {
-          logger.debug("'{}' declared as plugin, resolving version from pom file", currentArtifact);
-          pluginVersion = currentArtifact.getVersion();
+        if (rootArtifact.getGroupId().equals(pluginGroupId) && rootArtifact.getArtifactId().equals(pluginArtifactId)) {
+          logger.debug("'{}' declared as plugin, resolving version from pom file", rootArtifact);
+          pluginVersion = rootArtifact.getVersion();
         } else {
           logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
           Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
@@ -206,6 +214,24 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     return containerUrls;
   }
 
+  /**
+   * Converts the {@link List} of {@link File}s to {@link URL}s
+   *
+   * @param files {@link File} to get {@link URL}s
+   * @return {@link List} of {@link URL}s
+   */
+  private List<URL> toUrl(Collection<File> files) {
+    List<URL> urls = Lists.newArrayList();
+    for (File file : files) {
+      try {
+        urls.add(file.toURI().toURL());
+      } catch (MalformedURLException e) {
+        throw new IllegalArgumentException("Couldn't get URL", e);
+      }
+    }
+    return urls;
+  }
+
   // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
   private void resolveSnapshotVersionsFromClasspath(List<URL> resolvedURLs, List<URL> classpathURLs) {
     Map<File, List<URL>> classpathFolders = Maps.newHashMap();
@@ -244,27 +270,17 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
               }
             }
           }
+        } else {
+          logger.warn(
+                      "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL",
+                      artifactResolvedFile);
+          //logger.warn(
+          //            "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL therefore it is going to be ignored",
+          //            artifactResolvedFile);
+          //listIterator.remove();
         }
       }
     }
-  }
-
-  /**
-   * Converts the {@link List} of {@link File}s to {@link URL}s
-   *
-   * @param files {@link File} to get {@link URL}s
-   * @return {@link List} of {@link URL}s
-   */
-  private List<URL> toUrl(Collection<File> files) {
-    List<URL> urls = Lists.newArrayList();
-    for (File file : files) {
-      try {
-        urls.add(file.toURI().toURL());
-      } catch (MalformedURLException e) {
-        throw new IllegalArgumentException("Couldn't get URL", e);
-      }
-    }
-    return urls;
   }
 
 }

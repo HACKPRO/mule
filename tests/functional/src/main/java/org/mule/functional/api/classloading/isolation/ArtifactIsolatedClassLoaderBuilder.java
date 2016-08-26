@@ -10,7 +10,7 @@ package org.mule.functional.api.classloading.isolation;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
+import org.mule.functional.classloading.isolation.classification.AetherClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
 import org.mule.functional.classloading.isolation.maven.AutoDiscoverWorkspaceLocationResolver;
 
