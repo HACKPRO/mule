@@ -16,9 +16,6 @@ import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
 import org.mule.functional.api.classloading.isolation.ArtifactClassLoaderHolder;
 import org.mule.functional.api.classloading.isolation.ArtifactIsolatedClassLoaderBuilder;
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
-import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
-import org.mule.functional.classloading.isolation.maven.DependencyGraphMavenDependenciesResolver;
-import org.mule.runtime.core.util.ValueHolder;
 import org.mule.runtime.module.artifact.classloader.ArtifactClassLoader;
 
 import java.io.File;
@@ -26,7 +23,6 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.internal.builders.AnnotatedBuilder;
 import org.junit.runner.Description;
@@ -127,36 +123,25 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
    *         and it will behave similar as an application running in a Mule standalone container.
    */
   private static ArtifactClassLoaderHolder createClassLoaderTestRunner(Class<?> klass) throws IOException {
-    List<String> extensionBasePackages =
-        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "extensionBasePackage");
-    List<Class[]> exportClassesList =
-        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "exportClasses");
-    Set<Class> exportedClasses = exportClassesList.stream().flatMap(Arrays::stream).collect(toSet());
-
     final File targetTestClassesFolder = new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath());
 
     ArtifactIsolatedClassLoaderBuilder builder = new ArtifactIsolatedClassLoaderBuilder();
     builder.setRootArtifactClassesFolder(new File(targetTestClassesFolder.getParentFile(), "classes"));
     builder.setRootArtifactTestClassesFolder(targetTestClassesFolder);
-    builder.setExclusions(splitCommaSeparatedAttributeValues("exclusions", klass));
-    builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
-    builder.setExtensionBasePackages(extensionBasePackages);
-    builder.setExportClasses(exportedClasses);
 
-    //TODO review this!
-    List<Boolean> useAetherList =
-        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "useEclipseAether");
-    ValueHolder<Boolean> useAether = new ValueHolder<>(false);
-    useAetherList.stream().forEach(enabled -> useAether.set(useAether.get() || enabled));
-    if (useAether.get()) {
-      builder.setClassPathClassifier(new AetherClassPathClassifier());
-      List<String[]> pluginCoordinatesFromHierarchy =
-          getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
-      builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream()
-          .collect(toList()));
-    } else {
-      builder.setMavenDependenciesResolver(new DependencyGraphMavenDependenciesResolver());
-    }
+    builder.setApplicationArtifactExclusionsCoordinates(
+                                                        splitCommaSeparatedAttributeValues("applicationArtifactExclusions",
+                                                                                           klass));
+    builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
+
+    List<Class[]> exportPluginClassesList =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "exportPluginClasses");
+    builder.setExportPluginClasses(exportPluginClassesList.stream().flatMap(Arrays::stream).collect(toSet()));
+
+    List<String[]> pluginCoordinatesFromHierarchy =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
+    builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream()
+        .collect(toList()));
 
     return builder.build();
   }

@@ -11,7 +11,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
-
 import org.mule.extension.http.api.HttpRequestAttributes;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
 import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
@@ -45,9 +44,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 //TODO: MULE-9702 Remove once the tests are migrated.
-@ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
-    pluginCoordinates = {"org.mule.modules:mule-module-http-ext:mule-extension:4.0-SNAPSHOT",
-        "org.mule.modules:mule-module-sockets:mule-extension:4.0-SNAPSHOT"})
+@ArtifactClassLoaderRunnerConfig(pluginCoordinates = {"org.mule.modules:mule-module-http-ext",
+    "org.mule.modules:mule-module-sockets"})
 public class BasicHttpTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

@@ -11,9 +11,8 @@ import org.mule.extension.http.internal.request.validator.HttpRequesterProvider;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
 import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 
-@ArtifactClassLoaderRunnerConfig(exportClasses = {HttpRequesterProvider.class, HttpRequesterConfig.class},
-    useEclipseAether = true, pluginCoordinates = {"org.mule.modules:mule-module-sockets:mule-extension:4.0-SNAPSHOT",
-        "org.mule.modules:mule-module-http-ext:mule-extension:4.0-SNAPSHOT"})
+@ArtifactClassLoaderRunnerConfig(exportPluginClasses = {HttpRequesterProvider.class, HttpRequesterConfig.class},
+    pluginCoordinates = {"org.mule.modules:mule-module-sockets", "org.mule.modules:mule-module-http-ext"})
 public abstract class AbstractHttpTestCase extends MuleArtifactFunctionalTestCase {
 
   protected static final int DEFAULT_TIMEOUT = 1000;

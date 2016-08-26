@@ -38,8 +38,7 @@ import org.junit.rules.ExpectedException;
 /**
  * Base class with common behaviour for all the {@link SocketsExtension} test cases
  */
-@ArtifactClassLoaderRunnerConfig(useEclipseAether = true,
-    pluginCoordinates = "org.mule.modules:mule-module-sockets:mule-extension:4.0-SNAPSHOT")
+@ArtifactClassLoaderRunnerConfig(pluginCoordinates = "org.mule.modules:mule-module-sockets")
 public abstract class SocketExtensionTestCase extends MuleArtifactFunctionalTestCase {
 
   protected static final int TIMEOUT_MILLIS = 5000;

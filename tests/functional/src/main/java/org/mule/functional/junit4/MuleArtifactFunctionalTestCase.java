@@ -15,16 +15,14 @@ import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
  * <p/>
  * The artifacts that are going to be ALWAYS part of the container should be excluded from application and plugin
  * {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader}. Therefore the
- * {@link ArtifactClassLoaderRunnerConfig#exclusions()} is set here with the list of groupIds for those modules.
+ * {@link ArtifactClassLoaderRunnerConfig#applicationArtifactExclusions()} ()} is set here with the list of groupIds for those modules.
  * <p/>
  * Whenever a new groupId is created for mule components that would be always added to the container they must be added here.
- * <p/>
- * In addition to that it defines the {@link ArtifactClassLoaderRunnerConfig#extensionBasePackage()} default for mule extensions.
  *
  * @since 4.0
  */
-@ArtifactClassLoaderRunnerConfig(extensionBasePackage = "org.mule.extension",
-    exclusions = "org.mule,org.mule.modules*,org.mule.transports,org.mule.mvel,org.mule.common,org.mule.extensions")
+@ArtifactClassLoaderRunnerConfig(
+    applicationArtifactExclusions = "org.mule,org.mule.modules*,org.mule.transports,org.mule.mvel,org.mule.common,org.mule.extensions")
 public abstract class MuleArtifactFunctionalTestCase extends ArtifactFunctionalTestCase {
 
 }

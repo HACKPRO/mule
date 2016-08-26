@@ -7,9 +7,12 @@
 
 package org.mule.functional.classloading.isolation.classification.aether;
 
+import static java.lang.Boolean.valueOf;
+import static java.lang.System.getProperty;
 import static org.apache.maven.repository.internal.MavenRepositorySystemUtils.newSession;
 import static org.eclipse.aether.repository.RepositoryPolicy.CHECKSUM_POLICY_IGNORE;
 import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_NEVER;
+import static org.mule.runtime.core.api.config.MuleProperties.MULE_LOG_VERBOSE_CLASSLOADING;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
@@ -76,7 +79,9 @@ public class LocalRepositoryService {
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
     session.setWorkspaceReader(new DefaultWorkspaceReader(classpath, workspaceLocationResolver));
 
-    session.setRepositoryListener(new LoggerRepositoryListener());
+    if (valueOf(getProperty(MULE_LOG_VERBOSE_CLASSLOADING))) {
+      session.setRepositoryListener(new LoggerRepositoryListener());
+    }
   }
 
   /**
@@ -174,8 +179,8 @@ public class LocalRepositoryService {
    *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
-  private List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
-                                         DependencyFilter dependencyFilter) {
+  public List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
+                                        DependencyFilter dependencyFilter) {
     CollectRequest collectRequest = new CollectRequest();
     collectRequest.setRoot(root);
     collectRequest.setDependencies(directDependencies);

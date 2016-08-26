@@ -7,7 +7,10 @@
 
 package org.mule.functional.classloading.isolation.classification.aether;
 
+import static java.util.stream.Collectors.toList;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
+import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
+import static org.eclipse.aether.util.artifact.JavaScopes.TEST;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.classpathFilter;
 import static org.eclipse.aether.util.filter.DependencyFilterUtils.orFilter;
 import org.mule.functional.api.classloading.isolation.ArtifactUrlClassification;
@@ -28,7 +31,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.maven.model.Model;
@@ -38,7 +40,6 @@ import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.resolution.ArtifactDescriptorResult;
-import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,9 +64,21 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     LocalRepositoryService localRepositoryService =
         new LocalRepositoryService(context.getClassPathURLs(), context.getWorkspaceLocationResolver());
 
+    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
+    Model model = MavenModelFactory.createMavenProject(pomFile);
+
+    Artifact currentArtifact =
+        new DefaultArtifact(model.getGroupId() != null ? model.getGroupId() : model.getParent().getGroupId(),
+                            model.getArtifactId(), model.getPackaging(),
+                            model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
+    List<Dependency> directDependencies = localRepositoryService
+        .getDirectDependencies(currentArtifact);
+
     List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
-    List<PluginUrlClassification> pluginUrlClassifications = buildPluginUrlClassifications(context, localRepositoryService);
-    List<URL> applicationUrls = buildApplicationUrlClassification(context, localRepositoryService, pluginUrlClassifications);
+    List<PluginUrlClassification> pluginUrlClassifications =
+        buildPluginUrlClassifications(context, currentArtifact, directDependencies, localRepositoryService);
+    List<URL> applicationUrls = buildApplicationUrlClassification(context, currentArtifact, directDependencies,
+                                                                  localRepositoryService, pluginUrlClassifications);
     List<URL> bootLauncherUrls = getBootLauncherURLs(context);
 
     return new ArtifactUrlClassification(bootLauncherUrls, containerUrls, pluginUrlClassifications,
@@ -89,55 +102,86 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
+                                                      Artifact currentArtifact,
+                                                      List<Dependency> directDependencies,
                                                       LocalRepositoryService localRepositoryService,
                                                       List<PluginUrlClassification> pluginUrlClassifications) {
-    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
-    Model model = MavenModelFactory.createMavenProject(pomFile);
-
-    Artifact currentArtifact =
-        new DefaultArtifact(model.getGroupId(), model.getArtifactId(), model.getPackaging(),
-                            model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
-    List<Dependency> directDependencies = localRepositoryService
-        .getDirectDependencies(currentArtifact);
-
-    // Adding test classes!
     List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
     boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
-        && pluginUrlClassifications.stream().filter(p -> p.getName().equals(currentArtifact.toString())).findFirst().isPresent();
+        && pluginUrlClassifications.stream().filter(p -> {
+          Artifact plugin = new DefaultArtifact(p.getName());
+          return plugin.getGroupId().equals(currentArtifact.getGroupId())
+              && plugin.getArtifactId().equals(currentArtifact.getArtifactId());
+        }).findFirst().isPresent();
     if (!isRootArtifactPlugin) {
       applicationFiles.add(context.getRootArtifactClassesFolder());
     }
 
-    directDependencies = directDependencies.stream().filter(dependency -> {
-      String scope = dependency.getScope();
-      return !dependency.isOptional() && scope.equalsIgnoreCase(JavaScopes.TEST);
-    }).collect(Collectors.toList());
+    directDependencies = directDependencies.stream()
+        // .filter(dependency -> {
+        // String scope = dependency.getScope();
+        // return !dependency.isOptional() && scope.equalsIgnoreCase(TEST);
+        // })
+        .map(toTransform -> {
+          if (toTransform.getScope().equals(TEST)) {
+            return new Dependency(toTransform.getArtifact(), COMPILE);
+          }
+          return toTransform;
+        }).collect(toList());
     DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
                                                                               ALL_ARTIFACT_JAR_TESTS_COORDS);
-    if (!context.getExclusionsList().isEmpty()) {
-      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getExclusionsList()),
+    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
+      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getApplicationArtifactExclusionsCoordinates()),
                                   dependencyFilter);
     }
     applicationFiles
-        .addAll(localRepositoryService.resolveDependencies(directDependencies, dependencyFilter));
+        .addAll(localRepositoryService.resolveDependencies(new Dependency(currentArtifact, null), directDependencies,
+                                                           dependencyFilter));
 
     return toUrl(applicationFiles);
   }
 
   private List<PluginUrlClassification> buildPluginUrlClassifications(ClassPathClassifierContext context,
+                                                                      Artifact currentArtifact,
+                                                                      List<Dependency> directDependencies,
                                                                       LocalRepositoryService localRepositoryService) {
     List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
     if (context.getPluginCoordinates() != null) {
       for (String pluginCoords : context.getPluginCoordinates()) {
-        final DefaultArtifact artifact = new DefaultArtifact(pluginCoords);
+        logger.debug("Resolving plugin coordinates: '{}'", pluginCoords);
+
+        final String[] pluginSplitCoords = pluginCoords.split(":");
+        String pluginGroupId = pluginSplitCoords[0];
+        String pluginArtifactId = pluginSplitCoords[1];
+        String pluginVersion;
+
+        if (currentArtifact.getGroupId().equals(pluginGroupId) && currentArtifact.getArtifactId().equals(pluginArtifactId)) {
+          logger.debug("'{}' declared as plugin, resolving version from pom file", currentArtifact);
+          pluginVersion = currentArtifact.getVersion();
+        } else {
+          logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
+          Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
+              : directDependencies.stream().filter(dependency -> dependency.getArtifact().getGroupId().equals(pluginGroupId)
+                  && dependency.getArtifact().getArtifactId().equals(pluginArtifactId)).findFirst();
+          if (!pluginDependencyOp.isPresent() || !pluginDependencyOp.get().getScope().endsWith(PROVIDED)) {
+            throw new IllegalStateException("Plugin '" + pluginCoords
+                + "' in order to be resolved has to be declared as provided direct dependency of your Maven project");
+          }
+          Dependency pluginDependency = pluginDependencyOp.get();
+          pluginVersion = pluginDependency.getArtifact().getVersion();
+        }
+
+        final DefaultArtifact artifact = new DefaultArtifact(pluginGroupId, pluginArtifactId, "jar", pluginVersion);
+        logger.debug("'{}' plugin coordinates resolved to: '{}'", pluginCoords, artifact);
         List<URL> urls = toUrl(localRepositoryService
             .resolveDependencies(
                                  new Dependency(artifact,
                                                 COMPILE),
                                  classpathFilter(COMPILE)));
 
+        // TODO: check if exported classes already belong to this plugin...
         pluginUrlClassifications
-            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportClasses())));
+            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportPluginClasses())));
         // TODO generate extension metadata!
       }
     }

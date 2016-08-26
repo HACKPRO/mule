@@ -7,8 +7,6 @@
 
 package org.mule.functional.junit4.runners;
 
-import org.mule.runtime.extension.api.annotation.Extension;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -51,19 +49,21 @@ public @interface ArtifactClassLoaderRunnerConfig {
   String extraBootPackages() default "";
 
   /**
-   * The discovery process will look for classes in classpath annotated with {@link Extension}. This is required due to the scan
-   * process for annotated classes in the whole classpath takes time if it has to go over the whole set of classes.
+   * Plugins in the format of {@code [groupId]:[artifactId]} to be loaded and registered to Mule Container during the execution of
+   * the test. {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader} will be created for each plugin.
    * <p/>
-   * If the test doesn't set a base package it will fail to create the {@link ArtifactClassLoaderRunner}.
+   * If the current artifact being tested is a plugin it would need to be declared here the groupId and artifactId, its
+   * {@code /target/classes/} folder and Maven {@code compile} dependencies will be used to build the
+   * {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader}.
    * <p/>
-   * As best practices modules should define in an abstract base test class this value to be inherited to all the tests for the
-   * module.
+   * Otherwise any plugin artifact declared on this list should be declared as Maven dependency with scope {@code provided}, the
+   * version of the plugin to be resolved will be the one defined in the Maven dependency.
+   * <p/>
    *
-   * @return {@link String} to define the base package to be used when discovering for extensions in order to create for each
-   *         extension a plugin {@link ClassLoader}. If no extension are discovered plugin class loaders will not be created.
+   * @return array of {@link String} to define plugins in order to create for each a plugin {@link ClassLoader}
    */
   // TODO: MULE-10081 - Add support for scanning multiple base packages when discovering extensions
-  String extensionBasePackage() default "";
+  String[] pluginCoordinates() default {};
 
   /**
    * <b>WARNING: do not use this if you want to have a pure isolated test case.</b>
@@ -77,33 +77,25 @@ public @interface ArtifactClassLoaderRunnerConfig {
    * <p/>
    * {@link Class}es defined here will be also visible for all the tests in the module due to the {@link ClassLoader} is created
    * one per module when running tests.
+   * <p/>
+   * Only {@link Class}es from the plugin code would be exposed, it is not possible to export a {@link Class} that belongs to a
+   * third-party library.
    *
    * @return array of {@link Class} for those classes that has to be exposed for the test. By default is empty.
    */
-  Class[] exportClasses() default {};
+  Class[] exportPluginClasses() default {};
 
   /**
-   * List of groupId:artifactId:type to define the exclusions of artifacts that shouldn't be added to the application
-   * {@link ClassLoader}. Default exclusion is already defined in {@code excluded.properties} file and by using this annotation
-   * the ones defined here will be appended to those defined in file.
+   * List of {@code [groupId]:[artifactId]:[extension]:[version]} to define the coordinates of artifacts to be exclused from the
+   * application {@link ClassLoader}. Default and base list of artifacts is already defined in {@code excluded.properties} file
+   * and by using this annotation the ones defined here will be appended to those defined in file.
    *
-   * TODO: change this javadoc
-   * <pre>
-   * [groupId]:[artifactId]:[extension]:[version]
-   * </pre>
-   *
-   * @return a comma separated list of groupId:artifactId:type (it does support wildcards org.mule:*:* or *:mule-core:* but only
-   *         starts with for partial matching org.mule*:*:*) that would be used in order to exclude artifacts that should not be
-   *         added to the application class loader neither the extension/plugin class loaders due to they will be already exposed
-   *         through the container.
+   * @return a comma separated list of coordiantes (it does support wildcards org.mule:*:*:* or *:mule-core:*:* and partial
+   *         matching org.mule*:*:*:*) that would be used in order to exclude artifacts that should not be added to the
+   *         application due to they will be already exposed through the container.
    */
   // TODO: MULE-10083 - Improve how ArtifactClassLoaderRunner classifies the classpath for selecting which artifacts are already
   // bundled within the container
-  String exclusions() default "";
+  String applicationArtifactExclusions() default "";
 
-  // AETHER
-
-  boolean useEclipseAether() default false;
-
-  String[] pluginCoordinates() default {};
 }

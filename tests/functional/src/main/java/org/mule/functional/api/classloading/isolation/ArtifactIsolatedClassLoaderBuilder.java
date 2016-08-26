@@ -7,8 +7,10 @@
 
 package org.mule.functional.api.classloading.isolation;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import org.mule.functional.classloading.isolation.classification.DefaultClassPathClassifier;
+import org.mule.functional.classloading.isolation.classification.aether.AetherClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
 import org.mule.functional.classloading.isolation.maven.AutoDiscoverWorkspaceLocationResolver;
 
@@ -27,8 +29,6 @@ import java.util.Set;
  * {@link java.net.URL}'s</li>
  * <li>{@link ClassPathClassifier}: classifies the classpath URLs and builds the {@link List} or {@link java.net.URL}s for each
  * {@link ClassLoader}</li>
- * <li>{@link MavenDependenciesResolver}: builds the dependency graph used by the classification in order to get the dependencies
- * for the different Maven artifacts</li>
  * <li>{@link WorkspaceLocationResolver}: resolves paths, location for Maven project from workspace</li>
  * </ul>
  * For each of these extension points there is a default implementation already provided with this API.
@@ -40,8 +40,7 @@ import java.util.Set;
  */
 public class ArtifactIsolatedClassLoaderBuilder {
 
-  private ClassPathClassifier classPathClassifier = new DefaultClassPathClassifier();
-  private MavenDependenciesResolver mavenDependenciesResolver;
+  private ClassPathClassifier classPathClassifier = new AetherClassPathClassifier();
   private ClassPathUrlProvider classPathUrlProvider = new ClassPathUrlProvider();
   private WorkspaceLocationResolver workspaceLocationResolver = new AutoDiscoverWorkspaceLocationResolver();
 
@@ -49,14 +48,10 @@ public class ArtifactIsolatedClassLoaderBuilder {
 
   private File rootArtifactClassesFolder;
   private File rootArtifactTestClassesFolder;
-  private List<String> exclusions;
-  private List<String> extraBootPackages;
-  private List<String> extensionBasePackages;
-  private Set<Class> exportClasses;
-
-  // Aether
-  private List<String> pluginCoordinates;
-
+  private List<String> applicationArtifactExclusionsCoordinates = newArrayList();
+  private List<String> extraBootPackages = newArrayList();
+  private List<String> pluginCoordinates = newArrayList();
+  private Set<Class> exportPluginClasses = newHashSet();
 
   public ArtifactIsolatedClassLoaderBuilder setPluginCoordinates(List<String> pluginCoordinates) {
     this.pluginCoordinates = pluginCoordinates;
@@ -71,17 +66,6 @@ public class ArtifactIsolatedClassLoaderBuilder {
    */
   public ArtifactIsolatedClassLoaderBuilder setClassPathClassifier(final ClassPathClassifier classPathClassifier) {
     this.classPathClassifier = classPathClassifier;
-    return this;
-  }
-
-  /**
-   * Sets the {@link MavenDependenciesResolver} implementation to be used by the builder.
-   *
-   * @param mavenDependenciesResolver
-   * @return this
-   */
-  public ArtifactIsolatedClassLoaderBuilder setMavenDependenciesResolver(final MavenDependenciesResolver mavenDependenciesResolver) {
-    this.mavenDependenciesResolver = mavenDependenciesResolver;
     return this;
   }
 
@@ -132,11 +116,11 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link List} of exclusion packages to be used by the classification process.
    *
-   * @param exclusions
+   * @param applicationArtifactExclusionsCoordinates
    * @return this
    */
-  public ArtifactIsolatedClassLoaderBuilder setExclusions(final List<String> exclusions) {
-    this.exclusions = exclusions;
+  public ArtifactIsolatedClassLoaderBuilder setApplicationArtifactExclusionsCoordinates(final List<String> applicationArtifactExclusionsCoordinates) {
+    this.applicationArtifactExclusionsCoordinates = applicationArtifactExclusionsCoordinates;
     return this;
   }
 
@@ -152,24 +136,13 @@ public class ArtifactIsolatedClassLoaderBuilder {
   }
 
   /**
-   * Sets the {@link List} of extensions base packages to be used by the classification process for discovering extensions.
-   *
-   * @param extensionBasePackages
-   * @return this
-   */
-  public ArtifactIsolatedClassLoaderBuilder setExtensionBasePackages(final List<String> extensionBasePackages) {
-    this.extensionBasePackages = extensionBasePackages;
-    return this;
-  }
-
-  /**
    * Sets the {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing purposes only.
    *
-   * @param exportClasses
+   * @param exportPluginClasses
    * @return this
    */
-  public ArtifactIsolatedClassLoaderBuilder setExportClasses(final Set<Class> exportClasses) {
-    this.exportClasses = exportClasses;
+  public ArtifactIsolatedClassLoaderBuilder setExportPluginClasses(final Set<Class> exportPluginClasses) {
+    this.exportPluginClasses = exportPluginClasses;
     return this;
   }
 
@@ -191,10 +164,9 @@ public class ArtifactIsolatedClassLoaderBuilder {
     try {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
-                                         mavenDependenciesResolver != null ? mavenDependenciesResolver.buildDependencies() : null,
                                          workspaceLocationResolver,
-                                         exclusions, extraBootPackages, extensionBasePackages, exportClasses,
-                                         pluginCoordinates);
+                                         applicationArtifactExclusionsCoordinates, extraBootPackages,
+                                         pluginCoordinates, exportPluginClasses);
     } catch (IOException e) {
       throw new RuntimeException("Error while creating the classification context", e);
     }

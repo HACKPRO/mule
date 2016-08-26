@@ -26,8 +26,8 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunnerDelegateTo(Parameterized.class)
-@ArtifactClassLoaderRunnerConfig(exportClasses = {SftpClientFactory.class, SftpClient.class},
-    useEclipseAether = true, pluginCoordinates = "org.mule.modules:mule-module-ftp:mule-extension:4.0-SNAPSHOT")
+@ArtifactClassLoaderRunnerConfig(exportPluginClasses = {SftpClientFactory.class, SftpClient.class},
+    pluginCoordinates = "org.mule.modules:mule-module-ftp")
 public abstract class FtpConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   private final String name;
