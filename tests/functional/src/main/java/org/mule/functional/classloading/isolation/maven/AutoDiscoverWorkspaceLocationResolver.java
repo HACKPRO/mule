@@ -52,6 +52,8 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
 
   private Map<String, File> filePathByArtifactId = new HashMap<>();
 
+  private int hashCode;
+
   /**
    * Creates an instance of this class.
    *
@@ -178,5 +180,28 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     }
   }
 
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    } else if (null == obj || !getClass().equals(obj.getClass())) {
+      return false;
+    }
+
+    AutoDiscoverWorkspaceLocationResolver that = (AutoDiscoverWorkspaceLocationResolver) obj;
+    return filePathByArtifactId.equals(that.filePathByArtifactId);
+  }
+
+
+  @Override
+  public int hashCode() {
+    if (hashCode == 0) {
+      int hash = getClass().hashCode();
+      hash = hash * 31 + filePathByArtifactId.hashCode();
+
+      hashCode = hash;
+    }
+    return hashCode;
+  }
 
 }

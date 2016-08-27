@@ -27,16 +27,6 @@
                     <argLine>-Xmx1024m -Xms256m -XX:MaxPermSize=256m</argLine>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>com.github.ferstl</groupId>
-                <artifactId>depgraph-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>depgraph-dependencies-graph</id>
-                        <phase>process-resources</phase>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 

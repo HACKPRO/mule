@@ -44,6 +44,7 @@ import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
+import org.eclipse.aether.util.graph.selector.AndDependencySelector;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.eclipse.aether.util.repository.SimpleArtifactDescriptorPolicy;
 import org.slf4j.Logger;
@@ -68,18 +69,22 @@ public class LocalRepositoryService {
    *
    * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace.
    */
-  public LocalRepositoryService(List<URL> classpath, WorkspaceLocationResolver workspaceLocationResolver) {
+  public LocalRepositoryService(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
     session = newSession();
     session.setOffline(true);
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
     session.setArtifactDescriptorPolicy(new SimpleArtifactDescriptorPolicy(true, true));
+    session.setIgnoreArtifactDescriptorRepositories(true);
+    session
+        .setDependencySelector(new AndDependencySelector(session.getDependencySelector(),
+                                                         new WorkspaceDependencySelector(classPath, workspaceLocationResolver)));
 
     system = newRepositorySystem();
 
     LocalRepository localRepo = createMavenLocalRepository();
     session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-    session.setWorkspaceReader(new DefaultWorkspaceReader(classpath, workspaceLocationResolver));
+    session.setWorkspaceReader(new DefaultWorkspaceReader(classPath, workspaceLocationResolver));
 
     if (valueOf(getProperty(MULE_LOG_VERBOSE_CLASSLOADING))) {
       session.setRepositoryListener(new LoggerRepositoryListener());
@@ -185,13 +190,15 @@ public class LocalRepositoryService {
       }
 
       node = system.resolveDependencies(session, dependencyRequest).getRoot();
-    } catch (DependencyCollectionException | DependencyResolutionException e) {
+    } catch (DependencyCollectionException e) {
       throw new RuntimeException("Error while resolving dependencies", e);
+    } catch (DependencyResolutionException e) {
+      logger.warn("Couldn't resolve artifacts, this could end up in a ClassNotFound or NoClassDefFoundError: {}", e.getMessage());
+      node = e.getResult().getRoot();
     }
 
     List<File> files = getFiles(node);
     return files;
-
   }
 
   /**
