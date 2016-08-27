@@ -7,8 +7,6 @@
 
 package org.mule.functional.classloading.isolation.classification.aether;
 
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 
 import java.io.File;
@@ -27,17 +25,12 @@ import org.slf4j.LoggerFactory;
 public class WorkspaceDependencySelector implements DependencySelector {
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
-  private List<String> workspaceReferences;
+  private List<URL> classPath;
   private WorkspaceLocationResolver workspaceLocationResolver;
   private int hashCode;
 
   public WorkspaceDependencySelector(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
-    this.workspaceReferences = classPath.stream().filter(url -> new File(url.getFile()).isDirectory()).map(url -> new File(
-                                                                                                                           url.getFile())
-                                                                                                                               .getParentFile()
-                                                                                                                               .getParentFile()
-                                                                                                                               .getAbsolutePath())
-        .collect(toSet()).stream().collect(toList());
+    this.classPath = classPath;
     this.workspaceLocationResolver = workspaceLocationResolver;
   }
 
@@ -47,7 +40,7 @@ public class WorkspaceDependencySelector implements DependencySelector {
     if (workspaceRef == null || dependency.getArtifact().getExtension().equals("pom")) {
       return true;
     }
-    boolean select = workspaceReferences.contains(workspaceRef.getAbsolutePath());
+    boolean select = DefaultWorkspaceReader.findClassPathURL(dependency.getArtifact(), workspaceRef, classPath) != null;
     if (!select) {
       if (logger.isDebugEnabled()) {
         logger.warn("'{}' dependency not found in class path for reference '{}' therefore it will be ignored",
@@ -71,7 +64,7 @@ public class WorkspaceDependencySelector implements DependencySelector {
     }
 
     WorkspaceDependencySelector that = (WorkspaceDependencySelector) obj;
-    return workspaceReferences.equals(that.workspaceReferences)
+    return classPath.equals(that.classPath)
         && workspaceLocationResolver.equals(that.workspaceLocationResolver);
   }
 
@@ -80,7 +73,7 @@ public class WorkspaceDependencySelector implements DependencySelector {
   public int hashCode() {
     if (hashCode == 0) {
       int hash = getClass().hashCode();
-      hash = hash * 31 + workspaceReferences.hashCode();
+      hash = hash * 31 + classPath.hashCode();
       hash = hash * 31 + workspaceLocationResolver.hashCode();
 
       hashCode = hash;

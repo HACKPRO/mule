@@ -44,10 +44,10 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
 
   private final WorkspaceRepository workspaceRepository = new WorkspaceRepository(WORKSPACE);
   private final WorkspaceLocationResolver workspaceLocationResolver;
-  private final List<URL> classpath;
+  private final List<URL> classPath;
 
-  public DefaultWorkspaceReader(List<URL> classpath, WorkspaceLocationResolver workspaceLocationResolver) {
-    this.classpath = classpath;
+  public DefaultWorkspaceReader(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
+    this.classPath = classPath;
     this.workspaceLocationResolver = workspaceLocationResolver;
   }
 
@@ -88,7 +88,7 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       }
     } else {
       // Match artifactFile from Classpath and Workspace location
-      artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classpath);
+      artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classPath);
     }
 
     if (artifactFile != null && artifactFile.exists()) {
@@ -113,14 +113,14 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
    * classes depending if the artifacts were packaged or not.
    *
    * @param artifact to be used in order to find the {@link URL} in list of urls
-   * @param classpath a list of {@link URL} obtained from the classpath
+   * @param classPath a list of {@link URL} obtained from the classPath
    * @return {@link File} that represents the {@link Artifact} passed or null
    */
-  private File findClassPathURL(final Artifact artifact, final File workspaceArtifactPath, final List<URL> classpath) {
+  public static File findClassPathURL(final Artifact artifact, final File workspaceArtifactPath, final List<URL> classPath) {
     final StringBuilder moduleFolder =
         new StringBuilder(workspaceArtifactPath.getAbsolutePath()).append("/target/");
 
-    // Fix to handle when running test during an install phase due to maven builds the classpath pointing out to packaged files
+    // Fix to handle when running test during an install phase due to maven builds the classPath pointing out to packaged files
     // instead of classes folders.
     final StringBuilder explodedUrlSuffix = new StringBuilder();
     final StringBuilder packagedUrlSuffix = new StringBuilder();
@@ -131,7 +131,7 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       explodedUrlSuffix.append("classes/");
       packagedUrlSuffix.append("^(?!.*?(?:-tests.jar)).*.jar");
     }
-    final Optional<URL> localFile = classpath.stream().filter(url -> {
+    final Optional<URL> localFile = classPath.stream().filter(url -> {
       String path = url.getFile();
       if (path.contains(moduleFolder)) {
         String pathSuffix = path.substring(path.lastIndexOf(moduleFolder.toString()) + moduleFolder.length(), path.length());
@@ -151,7 +151,7 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
    * @param artifact The artifact to check, must not be {@code null}.
    * @return {@code true} if the artifact refers to test classes, {@code false} otherwise.
    */
-  private boolean isTestArtifact(Artifact artifact) {
+  public static boolean isTestArtifact(Artifact artifact) {
     return ("test-jar".equals(artifact.getProperty("type", "")))
         || ("jar".equals(artifact.getExtension()) && "tests".equals(artifact.getClassifier()));
   }
