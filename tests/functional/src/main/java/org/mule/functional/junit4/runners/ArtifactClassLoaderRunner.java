@@ -129,9 +129,11 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setRootArtifactClassesFolder(new File(targetTestClassesFolder.getParentFile(), "classes"));
     builder.setRootArtifactTestClassesFolder(targetTestClassesFolder);
 
-    builder.setApplicationArtifactExclusionsCoordinates(
-                                                        splitCommaSeparatedAttributeValues("applicationArtifactExclusions",
-                                                                                           klass));
+    List<String[]> applicationArtifactExclusionsDependencyFilterList =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
+                                            "applicationArtifactExclusionsDependencyFilter");
+    builder.setApplicationArtifactExclusionsCoordinates(applicationArtifactExclusionsDependencyFilterList.stream()
+        .flatMap(Arrays::stream).collect(toList()));
     builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
 
     List<Class[]> exportPluginClassesList =

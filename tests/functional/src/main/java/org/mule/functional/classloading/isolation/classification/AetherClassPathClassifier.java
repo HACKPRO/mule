@@ -209,7 +209,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                                               "*", "*"),
                                                                                 new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
                                                                                               "*"))),
-                             new PatternExclusionsDependencyFilter("junit", "org.hamcrest")));
+                             new PatternExclusionsDependencyFilter("junit:*:*:*", "org.hamcrest:*:*:*")));
     containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith("pom.xml")).collect(toList());
     resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
     return containerUrls;

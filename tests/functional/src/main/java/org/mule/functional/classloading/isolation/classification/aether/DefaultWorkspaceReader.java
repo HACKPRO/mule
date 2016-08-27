@@ -81,6 +81,7 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
               + REDUCED_POM_XML
               + " is not present. Run the plugin first.");
         }
+        logger.debug("Using {} for artifact {}", reducedPom, artifact);
         artifactFile = reducedPom;
       } else {
         artifactFile = new File(workspaceArtifactPath, POM_XML);

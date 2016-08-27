@@ -36,6 +36,13 @@ import java.lang.annotation.Target;
 @Inherited
 public @interface ArtifactClassLoaderRunnerConfig {
 
+  //TODO
+  String muleContainerCoordinates() default "";
+
+  String[] muleContainerExclusions() default {};
+
+  String[] muleContainerExclusionsDependencyFilter() default {};
+
   /**
    * In case if a particular test needs to add extra boot packages to append to the ones already defined in the
    * {@code excluded.properties}, it will have to define it here by using this annotation method.
@@ -96,6 +103,8 @@ public @interface ArtifactClassLoaderRunnerConfig {
    */
   // TODO: MULE-10083 - Improve how ArtifactClassLoaderRunner classifies the classpath for selecting which artifacts are already
   // bundled within the container
-  String applicationArtifactExclusions() default "";
+
+  //TODO as array
+  String[] applicationArtifactExclusionsDependencyFilter() default {};
 
 }

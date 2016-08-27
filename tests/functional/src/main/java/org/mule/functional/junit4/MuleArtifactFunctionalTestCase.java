@@ -15,14 +15,19 @@ import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
  * <p/>
  * The artifacts that are going to be ALWAYS part of the container should be excluded from application and plugin
  * {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader}. Therefore the
- * {@link ArtifactClassLoaderRunnerConfig#applicationArtifactExclusions()} ()} is set here with the list of groupIds for those modules.
+ * {@link ArtifactClassLoaderRunnerConfig#applicationArtifactExclusionsDependencyFilter()} is set here with the list of
+ * groupIds for those modules.
  * <p/>
  * Whenever a new groupId is created for mule components that would be always added to the container they must be added here.
  *
  * @since 4.0
  */
-@ArtifactClassLoaderRunnerConfig(
-    applicationArtifactExclusions = "org.mule,org.mule.modules*,org.mule.transports,org.mule.mvel,org.mule.common,org.mule.extensions")
+@ArtifactClassLoaderRunnerConfig(muleContainerCoordinates = "org.mule.distributions:mule-standalone:pom:4.0-SNAPSHOT",
+    muleContainerExclusions = {"org.mule.tests:*:*:*", "org.mule.extensions:mule-extensions-all:*:*"},
+    //TODO simplify this as a general exclusion rule for junit, check why hamcrest has to be excluded too
+    muleContainerExclusionsDependencyFilter = {"junit:*:*:*", "org.hamcrest:*:*:*"},
+    applicationArtifactExclusionsDependencyFilter = {"org.mule:*:*:*", "org.mule.modules*:*:*:*", "org.mule.transports:*:*:*",
+        "org.mule.mvel:*:*:*", "org.mule.common:*:*:*", "org.mule.extensions:*:*:*"})
 public abstract class MuleArtifactFunctionalTestCase extends ArtifactFunctionalTestCase {
 
 }
