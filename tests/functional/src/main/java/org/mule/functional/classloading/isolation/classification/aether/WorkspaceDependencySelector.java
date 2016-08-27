@@ -70,7 +70,8 @@ public class WorkspaceDependencySelector implements DependencySelector {
     }
 
     WorkspaceDependencySelector that = (WorkspaceDependencySelector) obj;
-    return workspaceReferences.equals(that.workspaceReferences) && workspaceLocationResolver.equals(that.workspaceLocationResolver);
+    return workspaceReferences.equals(that.workspaceReferences)
+        && workspaceLocationResolver.equals(that.workspaceLocationResolver);
   }
 
 

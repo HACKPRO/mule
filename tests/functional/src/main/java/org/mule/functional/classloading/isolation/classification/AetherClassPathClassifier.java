@@ -204,11 +204,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     List<URL> containerUrls = toUrl(localRepositoryService
         .resolveDependencies(new Dependency(muleContainerArtifactDescriptorResult.getArtifact(),
                                             PROVIDED, false, Lists.newArrayList(
-                                                                               new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
-                                                                                             MULE_EXTENSIONS_ALL_ARTIFACT_ID,
-                                                                                             "*", "*"),
-                                                                               new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
-                                                                                             "*"))),
+                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
+                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
+                                                                                              "*", "*"),
+                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
+                                                                                              "*"))),
                              new PatternExclusionsDependencyFilter("junit", "org.hamcrest")));
     containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith("pom.xml")).collect(toList());
     resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
