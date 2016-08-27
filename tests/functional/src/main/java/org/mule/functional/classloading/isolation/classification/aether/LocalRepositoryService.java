@@ -75,6 +75,7 @@ public class LocalRepositoryService {
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
     session.setArtifactDescriptorPolicy(new SimpleArtifactDescriptorPolicy(true, true));
+    //TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
     session.setIgnoreArtifactDescriptorRepositories(true);
     session
         .setDependencySelector(new AndDependencySelector(session.getDependencySelector(),
@@ -130,7 +131,6 @@ public class LocalRepositoryService {
                                                                                Collections.<RemoteRepository>emptyList(), null));
       return descriptor;
     } catch (ArtifactDescriptorException e) {
-      //TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
       throw new IllegalStateException("Couldn't read descriptor for artifact: '" + artifact
           + "', it has to be able to be resolved through the workspace or installed in your local Maven respository");
     }
@@ -190,11 +190,8 @@ public class LocalRepositoryService {
       }
 
       node = system.resolveDependencies(session, dependencyRequest).getRoot();
-    } catch (DependencyCollectionException e) {
+    } catch (DependencyCollectionException | DependencyResolutionException e) {
       throw new RuntimeException("Error while resolving dependencies", e);
-    } catch (DependencyResolutionException e) {
-      logger.warn("Couldn't resolve artifacts, this could end up in a ClassNotFound or NoClassDefFoundError: {}", e.getMessage());
-      node = e.getResult().getRoot();
     }
 
     List<File> files = getFiles(node);

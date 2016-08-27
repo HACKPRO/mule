@@ -7,10 +7,12 @@
 
 package org.mule.functional.classloading.isolation.maven;
 
+import static java.lang.System.getProperty;
+import static java.lang.System.getenv;
 import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
-import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import static java.nio.file.Paths.get;
 
 import java.io.File;
 import java.io.FileReader;
@@ -25,17 +27,28 @@ import java.util.Map;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
+
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Discovers the Maven projects {@link Artifact} based on the {@link System#getProperty(String)}
- * {@value #USER_DIR_SYSTEM_PROPERTY}.
+ * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
+ * folder and Maven variable {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} or environment variable {@value #ROOT_PROJECT_ENV_VAR}
+ * to define the root project directory.
  * <p/>
- * The discovering process checks if the {@value #USER_DIR_SYSTEM_PROPERTY} points to a {@value #POM_XML_FILE} first, then it goes
- * to the parent folder to check if there a Maven project there too (by checking if it has a {@value #POM_XML_FILE}) until it
- * reaches the parent pom for the whole workspace. Once found it, it traverse the whole file tree to register each artifact and
- * its location.
+ * In order be discovered Maven projects should be defined in a multi module way.
+ * <p/>
+ * The discovering process checks if {@value #USER_DIR_SYSTEM_PROPERTY} points to a {@value #POM_XML_FILE} first, then it
+ * traverses the parent folder hierarchy until it reaches the parent project for the whole workspace based on either
+ * {@value #USER_DIR_SYSTEM_PROPERTY} or {@value #ROOT_PROJECT_ENV_VAR}, or it stops at any parent folder that it is not a Maven
+ * project (by checking if it has a {@value #POM_XML_FILE}).
+ * <p/>
+ * Once root parent pom if found, it traverse the file tree to register each Maven project (module) and location. For the
+ * rootProjectDirectory if both variables {@value #USER_DIR_SYSTEM_PROPERTY} and {@value #ROOT_PROJECT_ENV_VAR} are set it will
+ * take precedence the one from Maven. If no one of them is set most likely it will register only the Maven project located at
+ * {@value #USER_DIR_SYSTEM_PROPERTY}, if it is a Maven project, and artifacts will be resolved using Maven repositories.
  * <p/>
  * Be aware that it is not supported to have Maven multi-module projects in your workspace (IDE or Maven build session) without a
  * parent pom to group them. If that's the case you will end up with resolutions to artifacts to the local repository instead of
@@ -47,6 +60,8 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
 
   public static final String POM_XML_FILE = "pom.xml";
   public static final String USER_DIR_SYSTEM_PROPERTY = "user.dir";
+  public static final String MAVEN_MULTI_MODULE_PROJECT_DIRECTORY = "maven.multiModuleProjectDirectory";
+  public static final String ROOT_PROJECT_ENV_VAR = "rootProjectDir";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -57,19 +72,20 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   /**
    * Creates an instance of this class.
    *
-   * @throws IllegalArgumentException if the {@value #USER_DIR_SYSTEM_PROPERTY}
+   * @throws IllegalArgumentException if the {@value #USER_DIR_SYSTEM_PROPERTY} doesn't point to a Maven project.
    */
   public AutoDiscoverWorkspaceLocationResolver() {
-    File userDir = new File(System.getProperty(USER_DIR_SYSTEM_PROPERTY));
+    File userDir = new File(getProperty(USER_DIR_SYSTEM_PROPERTY));
     logger.debug("Discovering workspace artifacts locations from {}='{}'", USER_DIR_SYSTEM_PROPERTY, userDir);
     if (!containsMavenProject(userDir)) {
-      throw new IllegalArgumentException("Only Maven projects can be discovered to set the artifactId-folder mapping. There is no pom.xml file at user.dir="
-          + userDir);
+      logger.warn("Couldn't find any workspace reference for artifacts due to '{}' is not a Maven project", userDir);
     }
+
+    Path rootProjectDirectory = getRootProjectPath(userDir);
 
     File currentDir = userDir;
     File lastMavenProjectDir = currentDir;
-    while (containsMavenProject(currentDir)) {
+    while (containsMavenProject(currentDir) && !currentDir.toPath().equals(rootProjectDirectory.getParent())) {
       lastMavenProjectDir = currentDir;
       currentDir = currentDir.getParentFile();
     }
@@ -83,15 +99,43 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   }
 
   /**
+   * Looks for the root project directory using Maven property {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY}, or System
+   * environment variable {@value #ROOT_PROJECT_ENV_VAR} or just the userDir.
+   *
+   * @param userDir {@link File} the userDir where Java is executed.
+   * @return {@link Path} to the root directory or null if couldn't be found.
+   */
+  private Path getRootProjectPath(File userDir) {
+    String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
+    if (rootProjectDirectoryProperty != null) {
+      logger.debug(
+                   "Using Maven (>=3.3.1) property 'maven.multiModuleProjectDirectory' to find out project root directory for discovering poms");
+    } else {
+      rootProjectDirectoryProperty = getenv(ROOT_PROJECT_ENV_VAR);
+    }
+
+    if (rootProjectDirectoryProperty == null) {
+      logger.warn(
+                  "No way to get the 'rootProjectDirectory' using System.property[{}], neither System.env['{}'] so using: {}." +
+                      " Meaning that artifacts would be resolved to Maven repository if they are not found on workspace. " +
+                      "If running this from IDE set the environment variable to your $PROJECT_DIR$ for IDEA or $workspace_loc on Eclipse.",
+                  MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, ROOT_PROJECT_ENV_VAR,
+                  userDir);
+      rootProjectDirectoryProperty = userDir.getAbsolutePath();
+    }
+    return get(rootProjectDirectoryProperty);
+  }
+
+  /**
    * Resolves the {@link File} from the discovered artifacts from the file system workspace.
    *
    * @param artifact to resolve its {@link File} from the workspace
    * @return {@link File} to the artifact of null if not found
    */
-  //@Override
-  //public File resolvePath(Artifact artifact) {
-  //  return filePathByArtifactId.get(artifact.getArtifactId());
-  //}
+  // @Override
+  // public File resolvePath(Artifact artifact) {
+  // return filePathByArtifactId.get(artifact.getArtifactId());
+  // }
   @Override
   public File resolvePath(String artifactId) {
     return filePathByArtifactId.get(artifactId);
@@ -150,6 +194,30 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     filePathByArtifactId.put(artifactId, path.toFile());
   }
 
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    } else if (null == obj || !getClass().equals(obj.getClass())) {
+      return false;
+    }
+
+    AutoDiscoverWorkspaceLocationResolver that = (AutoDiscoverWorkspaceLocationResolver) obj;
+    return filePathByArtifactId.equals(that.filePathByArtifactId);
+  }
+
+  @Override
+  public int hashCode() {
+    if (hashCode == 0) {
+      int hash = getClass().hashCode();
+      hash = hash * 31 + filePathByArtifactId.hashCode();
+
+      hashCode = hash;
+    }
+    return hashCode;
+  }
+
+
   /**
    * Looks for directories that contain a {@value #POM_XML_FILE} file so it will be added to the resolved artifacts locations.
    */
@@ -178,30 +246,6 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
       return CONTINUE;
     }
-  }
-
-  @Override
-  public boolean equals(Object obj) {
-    if (this == obj) {
-      return true;
-    } else if (null == obj || !getClass().equals(obj.getClass())) {
-      return false;
-    }
-
-    AutoDiscoverWorkspaceLocationResolver that = (AutoDiscoverWorkspaceLocationResolver) obj;
-    return filePathByArtifactId.equals(that.filePathByArtifactId);
-  }
-
-
-  @Override
-  public int hashCode() {
-    if (hashCode == 0) {
-      int hash = getClass().hashCode();
-      hash = hash * 31 + filePathByArtifactId.hashCode();
-
-      hashCode = hash;
-    }
-    return hashCode;
   }
 
 }
