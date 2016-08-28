@@ -46,7 +46,6 @@ import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
 import org.eclipse.aether.util.graph.selector.AndDependencySelector;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
-import org.eclipse.aether.util.repository.SimpleArtifactDescriptorPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,9 +71,10 @@ public class LocalRepositoryService {
   public LocalRepositoryService(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
     session = newSession();
     session.setOffline(true);
+
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
-    session.setArtifactDescriptorPolicy(new SimpleArtifactDescriptorPolicy(true, true));
+
     //TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
     session.setIgnoreArtifactDescriptorRepositories(true);
     session

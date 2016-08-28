@@ -122,7 +122,7 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
    * @return creates a {@link ArtifactClassLoaderHolder} that would be used to run the test. This way the test will be isolated
    *         and it will behave similar as an application running in a Mule standalone container.
    */
-  private static ArtifactClassLoaderHolder createClassLoaderTestRunner(Class<?> klass) throws IOException {
+  private static synchronized ArtifactClassLoaderHolder createClassLoaderTestRunner(Class<?> klass) throws IOException {
     final File targetTestClassesFolder = new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath());
 
     ArtifactIsolatedClassLoaderBuilder builder = new ArtifactIsolatedClassLoaderBuilder();
