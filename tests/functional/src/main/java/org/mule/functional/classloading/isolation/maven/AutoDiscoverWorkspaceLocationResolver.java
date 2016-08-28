@@ -76,12 +76,13 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    */
   public AutoDiscoverWorkspaceLocationResolver() {
     File userDir = new File(getProperty(USER_DIR_SYSTEM_PROPERTY));
-    logger.debug("Discovering workspace artifacts locations from {}='{}'", USER_DIR_SYSTEM_PROPERTY, userDir);
+    logger.debug("Discovering workspace artifacts locations from System.property['{}']='{}'", USER_DIR_SYSTEM_PROPERTY, userDir);
     if (!containsMavenProject(userDir)) {
       logger.warn("Couldn't find any workspace reference for artifacts due to '{}' is not a Maven project", userDir);
     }
 
     Path rootProjectDirectory = getRootProjectPath(userDir);
+    logger.debug("Defined rootProjectDirectory='{}'", rootProjectDirectory);
 
     File currentDir = userDir;
     File lastMavenProjectDir = currentDir;
@@ -90,7 +91,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
       currentDir = currentDir.getParentFile();
     }
 
-    logger.debug("Top folder, parent pom found at: '{}'", lastMavenProjectDir);
+    logger.debug("Top folder found, parent pom found at: '{}'", lastMavenProjectDir);
     try {
       walkFileTree(lastMavenProjectDir.toPath(), new MavenDiscovererFileVisitor());
     } catch (IOException e) {
@@ -109,8 +110,12 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
     if (rootProjectDirectoryProperty != null) {
       logger.debug(
-                   "Using Maven (>=3.3.1) property 'maven.multiModuleProjectDirectory' to find out project root directory for discovering poms");
+                   "Using Maven System.property['{}']='' to find out project root directory for discovering poms",
+                   MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
     } else {
+      logger.debug(
+                   "Checking if System.env['{}'] is set to find out project root directory for discovering poms",
+                   ROOT_PROJECT_ENV_VAR);
       rootProjectDirectoryProperty = getenv(ROOT_PROJECT_ENV_VAR);
     }
 
@@ -190,7 +195,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * @param path the {@link Path} location to the artifactId
    */
   private void resolvedArtifact(String artifactId, Path path) {
-    logger.trace("Resolved artifactId from workspace {}={}", artifactId, path);
+    logger.trace("Resolved artifactId from workspace at {}={}", artifactId, path);
     filePathByArtifactId.put(artifactId, path.toFile());
   }
 

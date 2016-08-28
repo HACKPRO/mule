@@ -216,6 +216,7 @@ public class IsolatedClassLoaderFactory {
         throw new RuntimeException("Error while appending URLs to launcher class loader", e);
       }
     }
+    logClassLoaderUrls("LAUNCHER", paths);
 
     return new MuleArtifactClassLoader("launcher", new URL[0], launcherClassLoader,
                                        new MuleClassLoaderLookupPolicy(Collections.emptyMap(), Collections.<String>emptySet()));

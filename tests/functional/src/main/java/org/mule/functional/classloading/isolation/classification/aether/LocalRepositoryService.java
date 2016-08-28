@@ -221,7 +221,7 @@ public class LocalRepositoryService {
     String localRepositoryProperty = System.getProperty("localRepository");
     if (localRepositoryProperty == null) {
       localRepositoryProperty = userHome + M2_REPO;
-      logger.debug("System property 'localRepository' not set, using Maven default location");
+      logger.debug("System property 'localRepository' not set, using Maven default location: $USER_HOME{}", M2_REPO);
     }
 
     logger.debug("Using Maven localRepository: '{}'", localRepositoryProperty);

@@ -43,8 +43,9 @@ public class WorkspaceDependencySelector implements DependencySelector {
     boolean select = DefaultWorkspaceReader.findClassPathURL(dependency.getArtifact(), workspaceRef, classPath) != null;
     if (!select) {
       if (logger.isDebugEnabled()) {
-        logger.warn("'{}' dependency not found in class path for reference '{}' therefore it will be ignored",
-                    dependency.getArtifact(), workspaceRef.getAbsolutePath());
+        logger
+            .warn("'{}' dependency found in dependency graph with a workspace reference at '{}' but not found in class path, therefore it will be ignored",
+                  dependency.getArtifact(), workspaceRef.getAbsolutePath());
       }
     }
     return select;
