@@ -118,6 +118,13 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
                    ROOT_PROJECT_ENV_VAR);
       rootProjectDirectoryProperty = getenv(ROOT_PROJECT_ENV_VAR);
     }
+    //TODO Just to make it work with Jenkins! Find out why maven multiModuleProjectDir is not populated!
+    if (rootProjectDirectoryProperty == null) {
+      logger.debug(
+                   "Checking if Jenkins System.env['{}'] is set to find out project root directory for discovering poms",
+                   "WORKSPACE");
+      rootProjectDirectoryProperty = getenv("WORKSPACE");
+    }
 
     if (rootProjectDirectoryProperty == null) {
       logger.warn(
