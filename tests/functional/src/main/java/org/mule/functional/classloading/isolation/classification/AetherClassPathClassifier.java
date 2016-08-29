@@ -53,6 +53,7 @@ import org.slf4j.LoggerFactory;
 public class AetherClassPathClassifier implements ClassPathClassifier {
 
   public static final String ALL_TESTS_JAR_ARTIFACT_COORDS = "*:*:jar:tests:*";
+  public static final String GENERATED_TEST_RESOURCES = "generate-test-resources";
 
   public static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
@@ -233,15 +234,16 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
     List<String> exclusionsPatterns = Lists.newArrayList();
 
-    if (!isRootArtifactPlugin) {
-      if (context.getRootArtifactClassesFolder().exists()) {
-        if (logger.isDebugEnabled()) {
-          logger.debug("RootArtifact is not a plugin so '{}' is added to application classification",
-                       context.getRootArtifactClassesFolder());
-        }
-        applicationFiles.add(context.getRootArtifactClassesFolder());
+    if (!isRootArtifactPlugin && context.getRootArtifactClassesFolder().exists()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("RootArtifact is not a plugin so '{}' is added to application classification",
+                     context.getRootArtifactClassesFolder());
       }
+      applicationFiles.add(context.getRootArtifactClassesFolder());
     } else {
+      if (logger.isDebugEnabled()) {
+        logger.debug("RootArtifact is a plugin or it doesn't have a target/classes folder (it is the case of a test artifact)");
+      }
       exclusionsPatterns.add(rootArtifact.getGroupId() + MAVEN_COORDINATES_SEPARATOR
           + rootArtifact.getArtifactId() + MAVEN_COORDINATES_SEPARATOR +
           JAR_EXTENSION + MAVEN_COORDINATES_SEPARATOR + rootArtifact.getVersion());

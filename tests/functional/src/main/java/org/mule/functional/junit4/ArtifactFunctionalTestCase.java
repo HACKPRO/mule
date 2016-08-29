@@ -8,17 +8,19 @@
 package org.mule.functional.junit4;
 
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFrom;
-import org.mule.functional.api.classloading.isolation.IsolatedClassLoaderExtensionsManagerConfigurationBuilder;
+
+import java.io.File;
+import java.util.List;
+
+import org.junit.runner.RunWith;
+
 import org.mule.functional.api.classloading.isolation.ClassPathClassifier;
+import org.mule.functional.api.classloading.isolation.IsolatedClassLoaderExtensionsManagerConfigurationBuilder;
 import org.mule.functional.junit4.runners.ArtifactClassLoaderRunner;
 import org.mule.functional.junit4.runners.PluginClassLoadersAware;
 import org.mule.functional.junit4.runners.RunnerDelegateTo;
 import org.mule.runtime.core.api.config.ConfigurationBuilder;
 import org.mule.runtime.module.artifact.classloader.ArtifactClassLoader;
-
-import java.util.List;
-
-import org.junit.runner.RunWith;
 
 /**
  * Base class for running {@link FunctionalTestCase} with class loader isolation using {@link ArtifactClassLoaderRunner}, a JUnit
@@ -99,7 +101,7 @@ public abstract class ArtifactFunctionalTestCase extends FunctionalTestCase {
     }
 
     if (pluginClassLoaders != null && !pluginClassLoaders.isEmpty()) {
-      builders.add(0, new IsolatedClassLoaderExtensionsManagerConfigurationBuilder(pluginClassLoaders));
+      builders.add(0, new IsolatedClassLoaderExtensionsManagerConfigurationBuilder(new File(this.getClass().getProtectionDomain().getCodeSource().getLocation().getFile()).getParentFile(), pluginClassLoaders));
     }
   }
 
