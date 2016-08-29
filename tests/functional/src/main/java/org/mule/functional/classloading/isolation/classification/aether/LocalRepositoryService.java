@@ -78,8 +78,14 @@ public class LocalRepositoryService {
     session.setUpdatePolicy(UPDATE_POLICY_NEVER);
     session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
 
-    //TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
+    // TODO (gfernandes) Do we want to allow remote repositories to be accessed during resolution?
     session.setIgnoreArtifactDescriptorRepositories(true);
+    // TODO: If you seek a closer cooperation with Apache Maven and want to read configuration from the user's settings.xml, you
+    // should have a look at the library org.apache.maven:maven-settings-builder which provides the necessary bits. The method
+    // AntRepoSys.getSettings() from the Aether Ant Tasks can serve as inspiration for your own code. But please direct any
+    // questions regarding usage of that library to the Maven mailing list.
+    // SettingsBuilder settingsBuilder = new DefaultSettingsBuilderFactory().newInstance();
+
     session
         .setDependencySelector(new AndDependencySelector(session.getDependencySelector(),
                                                          new WorkspaceDependencySelector(classPath, workspaceLocationResolver)));
@@ -140,8 +146,8 @@ public class LocalRepositoryService {
   }
 
   /**
-   *      * Resolves the path for an artifact. The artifact will be downloaded to the local repository if necessary. An
-   * artifact that is already resolved will be skipped and is not re-resolved.
+   * * Resolves the path for an artifact. The artifact will be downloaded to the local repository if necessary. An artifact that
+   * is already resolved will be skipped and is not re-resolved.
    *
    * @param artifact the artifact requested, must not be {@code null}
    * @return The resolution result, never {@code null}.
