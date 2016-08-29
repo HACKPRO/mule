@@ -41,7 +41,7 @@ import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.graph.Exclusion;
-import org.eclipse.aether.resolution.ArtifactDescriptorResult;
+import org.eclipse.aether.resolution.ArtifactResult;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +66,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     LocalRepositoryService localRepositoryService =
         new LocalRepositoryService(context.getClassPathURLs(), context.getWorkspaceLocationResolver());
 
+    logger.debug("Getting rootArtifact");
     Artifact rootArtifact = getRootArtifact(context);
+    logger.debug("Building class loaders for rootArtifact: {}", rootArtifact);
     List<Dependency> directDependencies = localRepositoryService
         .getDirectDependencies(rootArtifact);
 
@@ -198,11 +200,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
   private List<URL> buildContainerUrlClassification(LocalRepositoryService localRepositoryService,
                                                     ClassPathClassifierContext context) {
-    ArtifactDescriptorResult muleContainerArtifactDescriptorResult =
-        localRepositoryService.readArtifactDescriptor(new DefaultArtifact(MULE_STANDALONE_ARTIFACT));
+    ArtifactResult muleContainerArtifactResult =
+        localRepositoryService.resolveArtifact(new DefaultArtifact(MULE_STANDALONE_ARTIFACT));
 
     List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(new Dependency(muleContainerArtifactDescriptorResult.getArtifact(),
+        .resolveDependencies(new Dependency(muleContainerArtifactResult.getArtifact(),
                                             PROVIDED, false, Lists.newArrayList(
                                                                                 new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
                                                                                               MULE_EXTENSIONS_ALL_ARTIFACT_ID,

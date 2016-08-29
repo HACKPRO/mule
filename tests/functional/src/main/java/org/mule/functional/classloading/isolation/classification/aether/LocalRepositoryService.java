@@ -39,6 +39,9 @@ import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.resolution.ArtifactDescriptorException;
 import org.eclipse.aether.resolution.ArtifactDescriptorRequest;
 import org.eclipse.aether.resolution.ArtifactDescriptorResult;
+import org.eclipse.aether.resolution.ArtifactRequest;
+import org.eclipse.aether.resolution.ArtifactResolutionException;
+import org.eclipse.aether.resolution.ArtifactResult;
 import org.eclipse.aether.resolution.DependencyRequest;
 import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
@@ -132,7 +135,27 @@ public class LocalRepositoryService {
       return descriptor;
     } catch (ArtifactDescriptorException e) {
       throw new IllegalStateException("Couldn't read descriptor for artifact: '" + artifact
-          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository");
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository", e);
+    }
+  }
+
+  /**
+   *      * Resolves the path for an artifact. The artifact will be downloaded to the local repository if necessary. An
+   * artifact that is already resolved will be skipped and is not re-resolved.
+   *
+   * @param artifact the artifact requested, must not be {@code null}
+   * @return The resolution result, never {@code null}.
+   * @throws IllegalStateException If the artifact could not be resolved.
+   */
+  public ArtifactResult resolveArtifact(Artifact artifact) {
+    try {
+      ArtifactResult result =
+          system.resolveArtifact(session, new ArtifactRequest(artifact,
+                                                              Collections.<RemoteRepository>emptyList(), null));
+      return result;
+    } catch (ArtifactResolutionException e) {
+      throw new IllegalStateException("Couldn't resolve artifact: '" + artifact
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository", e);
     }
   }
 
