@@ -25,7 +25,6 @@ public interface WorkspaceLocationResolver {
    * @param artifact to resolve its {@link File} from the workspace
    * @return {@link File} for the given artifactId location or null if it is not present in workspace
    */
-  //File resolvePath(Artifact artifact);
-  File resolvePath(String artifactId);
+  File resolvePath(Artifact artifact);
 
 }

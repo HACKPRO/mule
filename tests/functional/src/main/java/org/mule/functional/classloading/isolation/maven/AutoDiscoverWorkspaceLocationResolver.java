@@ -14,6 +14,10 @@ import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
 import static java.nio.file.Paths.get;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import org.mule.runtime.core.util.StringMessageUtils;
+
+import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.io.FileReader;
@@ -29,14 +33,8 @@ import java.util.Map;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
-
-import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
-import org.mule.runtime.core.util.StringMessageUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
 
 /**
  * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
@@ -67,6 +65,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   public static final String USER_DIR_SYSTEM_PROPERTY = "user.dir";
   public static final String MAVEN_MULTI_MODULE_PROJECT_DIRECTORY = "maven.multiModuleProjectDirectory";
   public static final String ROOT_PROJECT_ENV_VAR = "rootProjectDir";
+  public static final String WORKSPACE_ENV_VARIABLE = "WORKSPACE";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -129,12 +128,12 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
                    ROOT_PROJECT_ENV_VAR);
       rootProjectDirectoryProperty = getenv(ROOT_PROJECT_ENV_VAR);
     }
-    //TODO Just to make it work with Jenkins! Find out why maven multiModuleProjectDir is not populated!
+    // TODO(gfernandes) Just to make it work with Jenkins! Find out why maven multiModuleProjectDir is not populated!
     if (rootProjectDirectoryProperty == null) {
       logger.debug(
                    "Checking if Jenkins System.env['{}'] is set to find out project root directory for discovering poms",
-                   "WORKSPACE");
-      rootProjectDirectoryProperty = getenv("WORKSPACE");
+                   WORKSPACE_ENV_VARIABLE);
+      rootProjectDirectoryProperty = getenv(WORKSPACE_ENV_VARIABLE);
     }
 
     if (rootProjectDirectoryProperty == null) {
@@ -155,13 +154,9 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * @param artifact to resolve its {@link File} from the workspace
    * @return {@link File} to the artifact of null if not found
    */
-  // @Override
-  // public File resolvePath(Artifact artifact) {
-  // return filePathByArtifactId.get(artifact.getArtifactId());
-  // }
   @Override
-  public File resolvePath(String artifactId) {
-    return filePathByArtifactId.get(artifactId);
+  public File resolvePath(Artifact artifact) {
+    return filePathByArtifactId.get(artifact.getArtifactId());
   }
 
   /**

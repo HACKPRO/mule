@@ -218,33 +218,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
     List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
 
-    directDependencies = directDependencies.stream()
-        .map(toTransform -> {
-          if (toTransform.getScope().equals(TEST)) {
-            return new Dependency(toTransform.getArtifact(), COMPILE);
-          }
-          return toTransform;
-        }).collect(toList());
-
     if (logger.isDebugEnabled()) {
       logger.debug("Setting filter for dependency graph to include: '{}'", ALL_TESTS_JAR_ARTIFACT_COORDS);
     }
     DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
                                                                               ALL_TESTS_JAR_ARTIFACT_COORDS);
-
-    if (logger.isDebugEnabled()) {
-      logger.debug("OR exclude: {}", context.getExcludedArtifacts());
-    }
-    dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()),
-                                dependencyFilter);
-
-    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
-      if (logger.isDebugEnabled()) {
-        logger.debug("OR exclude application specific artifacts: {}", context.getApplicationArtifactExclusionsCoordinates());
-      }
-      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getApplicationArtifactExclusionsCoordinates()),
-                                  dependencyFilter);
-    }
 
     boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
         && pluginUrlClassifications.stream().filter(p -> {
@@ -252,6 +230,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
           return plugin.getGroupId().equals(rootArtifact.getGroupId())
               && plugin.getArtifactId().equals(rootArtifact.getArtifactId());
         }).findFirst().isPresent();
+
+    List<String> exclusionsPatterns = Lists.newArrayList();
+
     if (!isRootArtifactPlugin) {
       if (context.getRootArtifactClassesFolder().exists()) {
         if (logger.isDebugEnabled()) {
@@ -259,12 +240,34 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                        context.getRootArtifactClassesFolder());
         }
         applicationFiles.add(context.getRootArtifactClassesFolder());
-      } else {
-        if (logger.isDebugEnabled()) {
-          logger.debug("{} rootArtifact marked as a test artifact only, it doesn't have a target/classes folder", rootArtifact);
-        }
-        dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(rootArtifact.toString()));
       }
+    } else {
+      exclusionsPatterns.add(rootArtifact.getGroupId() + MAVEN_COORDINATES_SEPARATOR
+          + rootArtifact.getArtifactId() + MAVEN_COORDINATES_SEPARATOR +
+          JAR_EXTENSION + MAVEN_COORDINATES_SEPARATOR + rootArtifact.getVersion());
+    }
+
+    directDependencies = directDependencies.stream()
+        .map(toTransform -> {
+          if (toTransform.getScope().equals(TEST)) {
+            return new Dependency(toTransform.getArtifact(), COMPILE);
+          }
+          if (isRootArtifactPlugin && toTransform.getScope().equals(COMPILE)) {
+            return new Dependency(toTransform.getArtifact(), PROVIDED);
+          }
+          return toTransform;
+        }).collect(toList());
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("OR exclude: {}", context.getExcludedArtifacts());
+    }
+    exclusionsPatterns.addAll(context.getExcludedArtifacts());
+
+    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("OR exclude application specific artifacts: {}", context.getApplicationArtifactExclusionsCoordinates());
+      }
+      exclusionsPatterns.addAll(context.getApplicationArtifactExclusionsCoordinates());
     }
 
     if (logger.isDebugEnabled()) {
@@ -272,7 +275,8 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
     applicationFiles
         .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST), directDependencies,
-                                                           dependencyFilter));
+                                                           orFilter(dependencyFilter,
+                                                                    new PatternExclusionsDependencyFilter(exclusionsPatterns))));
 
     return toUrl(applicationFiles);
   }

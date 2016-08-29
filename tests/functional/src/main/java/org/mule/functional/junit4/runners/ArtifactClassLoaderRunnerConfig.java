@@ -42,8 +42,6 @@ public @interface ArtifactClassLoaderRunnerConfig {
 
   String[] muleContainerExclusions() default {};
 
-  String[] muleContainerExclusionsDependencyFilter() default {};
-
   /**
    * In case if a particular test needs to add extra boot packages to append to the ones already defined in the
    * {@code excluded.properties}, it will have to define it here by using this annotation method.

@@ -25,8 +25,6 @@ import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 @ArtifactClassLoaderRunnerConfig(
     muleContainerCoordinates = "org.mule.distributions:mule-standalone",
     muleContainerExclusions = {"org.mule.tests:*:*:*", "org.mule.extensions:mule-extensions-all:*:*"},
-    // TODO simplify this as a general exclusion rule for junit
-    muleContainerExclusionsDependencyFilter = {"junit:*:*:*", "org.hamcrest:*:*:*"},
     applicationArtifactExclusionsDependencyFilter = {"org.mule:*:*:*", "org.mule.modules*:*:*:*", "org.mule.transports:*:*:*",
         "org.mule.mvel:*:*:*", "org.mule.common:*:*:*", "org.mule.extensions:*:*:*"})
 public abstract class MuleArtifactFunctionalTestCase extends ArtifactFunctionalTestCase {
