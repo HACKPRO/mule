@@ -128,9 +128,9 @@ public class IsolatedClassLoaderExtensionsManagerConfigurationBuilder extends Ab
         Set<BeanDefinition> extensionsAnnotatedClasses = scanner.findCandidateComponents("");
         if (extensionsAnnotatedClasses.size() > 1) {
           throw new IllegalStateException(
-              "While scanning class loader on '" + artifactName
-                  + "' for discovering @Extension classes annotated, more than one found. Only one should be discovered, found: "
-                  + extensionsAnnotatedClasses);
+                                          "While scanning class loader on '" + artifactName
+                                              + "' for discovering @Extension classes annotated, more than one found. Only one should be discovered, found: "
+                                              + extensionsAnnotatedClasses);
         }
 
         if (extensionsAnnotatedClasses.size() == 1) {
@@ -145,19 +145,18 @@ public class IsolatedClassLoaderExtensionsManagerConfigurationBuilder extends Ab
           }
 
           withContextClassLoader(classLoader, () -> extensionsInfrastructure.generateLoaderResources(
-              extensionsInfrastructure
-                  .discoverExtension(
-                      extensionClass,
-                      new StaticVersionResolver(
-                          getPluginVersion(
-                              artifactName))),
-              generatedResourcesDirectory));
+                                                                                                     extensionsInfrastructure
+                                                                                                         .discoverExtension(
+                                                                                                                            extensionClass,
+                                                                                                                            new StaticVersionResolver(
+                                                                                                                                                      getPluginVersion(
+                                                                                                                                                                       artifactName))),
+                                                                                                     generatedResourcesDirectory));
 
           Method method = findMethod(classLoader.getClass(), "addURL", URL.class);
           method.setAccessible(true);
           method.invoke(classLoader, generatedResourcesDirectory.getParentFile().toURI().toURL());
-        }
-        else {
+        } else {
           logger.debug("Already generated metadata for extension on artifact: '{}'", artifactName);
         }
       }
@@ -175,7 +174,8 @@ public class IsolatedClassLoaderExtensionsManagerConfigurationBuilder extends Ab
   private boolean isAlreadyAppendedURL(URL generatedResourcesURL, ClassLoader pluginClassLoader) {
     checkArgument(pluginClassLoader instanceof URLClassLoader, "pluginClassLoader should be a URLClassLoader");
 
-    return stream(((URLClassLoader) pluginClassLoader).getURLs()).filter(url -> url.getFile().equals(generatedResourcesURL.getFile())).findAny().isPresent();
+    return stream(((URLClassLoader) pluginClassLoader).getURLs())
+        .filter(url -> url.getFile().equals(generatedResourcesURL.getFile())).findAny().isPresent();
   }
 
   /**
@@ -265,7 +265,7 @@ public class IsolatedClassLoaderExtensionsManagerConfigurationBuilder extends Ab
     Enumeration<URL> enumeration =
         (Enumeration<URL>) findResourceMethod.invoke(classLoader, "META-INF/" + EXTENSION_MANIFEST_FILE_NAME);
     File generatedResourcesBaseFolder = getGeneratedResourcesBase();
-    while(enumeration.hasMoreElements()) {
+    while (enumeration.hasMoreElements()) {
       URL found = enumeration.nextElement();
       File folder = new File(found.getFile()).getParentFile().getParentFile().getParentFile();
       if (folder.equals(generatedResourcesBaseFolder)) {
