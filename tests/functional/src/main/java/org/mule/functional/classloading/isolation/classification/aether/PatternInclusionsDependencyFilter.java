@@ -19,17 +19,33 @@ import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.graph.DependencyNode;
 
 /**
- * TODO
- * [groupId]:[artifactId]:[extension]:[classifier]:[version].
+ * Implementation similar to {@link org.eclipse.aether.util.filter.PatternInclusionsDependencyFilter} that adds support for
+ * classifier attribute.
+ * <p/>
+ * Format for inclusions is:
+ * 
+ * <pre>
+ * [groupId]:[artifactId]:[extension]:[classifier]:[version]
+ * </pre>
+ *
+ * @since 4.0
  */
 public class PatternInclusionsDependencyFilter implements DependencyFilter {
 
   private final Set<String> patterns = new HashSet<String>();
 
+  /**
+   * Creates the filter using the Maven coordinates
+   *
+   * @param coords that define the inclusion patterns
+   */
   public PatternInclusionsDependencyFilter(final String... coords) {
     this.patterns.addAll(asList(coords));
   }
 
+  /**
+   * {@inheritDoc}
+   */
   public boolean accept(final DependencyNode node, List<DependencyNode> parents) {
     final Dependency dependency = node.getDependency();
     if (dependency == null) {
@@ -98,6 +114,9 @@ public class PatternInclusionsDependencyFilter implements DependencyFilter {
     return matches;
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public boolean equals(final Object obj) {
     if (this == obj) {
@@ -113,6 +132,9 @@ public class PatternInclusionsDependencyFilter implements DependencyFilter {
     return this.patterns.equals(that.patterns);
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public int hashCode() {
     int hash = 17;

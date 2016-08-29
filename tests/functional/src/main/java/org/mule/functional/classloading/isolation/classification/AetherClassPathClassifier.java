@@ -353,11 +353,6 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
           logger.warn(
                       "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL",
                       artifactResolvedFile);
-          // logger.warn(
-          // "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL therefore it
-          // is going to be ignored",
-          // artifactResolvedFile);
-          // listIterator.remove();
         }
       }
     }

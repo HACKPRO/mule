@@ -51,66 +51,9 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
     this.workspaceLocationResolver = workspaceLocationResolver;
   }
 
-  @Override
-  public WorkspaceRepository getRepository() {
-    return workspaceRepository;
-  }
-
-  @Override
-  public File findArtifact(Artifact artifact) {
-    if (!artifact.isSnapshot()) {
-      return null;
-    }
-
-    File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact.getArtifactId());
-    if (workspaceArtifactPath == null) {
-      // Cannot be resolved in workspace so delegate the resolution to local repository
-      return null;
-    }
-
-    File artifactFile;
-    if (artifact.getExtension().equals(POM)) {
-      Plugin shadeMavenPlugin =
-          searchForMavenShadePlugin(MavenModelFactory.createMavenProject(new File(workspaceArtifactPath, POM_XML)));
-      if (shadeMavenPlugin != null) {
-        // TODO (gfernandes) add support for reading the plugin configuration using Xpp3 Maven API
-        // MavenXpp3Reader.parsePluginConfiguration(...)
-        File reducedPom = new File(workspaceArtifactPath, REDUCED_POM_XML);
-        if (!reducedPom.exists()) {
-          throw new IllegalStateException(artifact + " has in its build configure the " + shadeMavenPlugin + " but default "
-              + REDUCED_POM_XML
-              + " is not present. Run the plugin first.");
-        }
-        logger.debug("Using {} for artifact {}", reducedPom, artifact);
-        artifactFile = reducedPom;
-      } else {
-        artifactFile = new File(workspaceArtifactPath, POM_XML);
-      }
-    } else {
-      // Match artifactFile from Classpath and Workspace location
-      artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classPath);
-    }
-
-    if (artifactFile != null && artifactFile.exists()) {
-      return artifactFile.getAbsoluteFile();
-    }
-    return null;
-  }
-
   /**
-   * Not need to specify the versions here.
-   *
-   * @param artifact to look for its versions
-   * @return an empty {@link List}
-   */
-  @Override
-  public List<String> findVersions(Artifact artifact) {
-    return emptyList();
-  }
-
-  /**
-   * Looks for a matching {@link URL} for the artifact resolved in a workspace location. It also supports to look for jars or
-   * classes depending if the artifacts were packaged or not.
+   * Looks for a matching {@link URL} for a workspace {@link Artifact}. It also supports to look for jars or classes depending if
+   * the artifacts were packaged or not.
    *
    * @param artifact to be used in order to find the {@link URL} in list of urls
    * @param classPath a list of {@link URL} obtained from the classPath
@@ -154,6 +97,78 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
   public static boolean isTestArtifact(Artifact artifact) {
     return ("test-jar".equals(artifact.getProperty("type", "")))
         || ("jar".equals(artifact.getExtension()) && "tests".equals(artifact.getClassifier()));
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public WorkspaceRepository getRepository() {
+    return workspaceRepository;
+  }
+
+  @Override
+  public File findArtifact(Artifact artifact) {
+    if (!artifact.isSnapshot()) {
+      // Only snapshot artifacts would be found here...
+      return null;
+    }
+
+    File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact.getArtifactId());
+    if (workspaceArtifactPath == null) {
+      // Cannot be resolved in workspace so delegate its resolution to the Maven local repository
+      return null;
+    }
+
+    File artifactFile;
+    if (artifact.getExtension().equals(POM)) {
+      artifactFile = findPomFile(artifact, workspaceArtifactPath);
+    } else {
+      artifactFile = findClassPathURL(artifact, workspaceArtifactPath, classPath);
+    }
+
+    if (artifactFile != null && artifactFile.exists()) {
+      return artifactFile.getAbsoluteFile();
+    }
+    return null;
+  }
+
+  /**
+   * Resolves the location of the {@value #POM_XML} {@link File} taking into account {@value #MAVEN_SHADE_PLUGIN_ARTIFACT_ID}
+   * plugin.
+   *
+   * @param artifact {@link Artifact} to get its {@value #POM_XML}
+   * @param workspacePath {@link File} referencing the location of the {@link Artifact} in the workspace
+   * @return {@link File} to the {@value #POM_XML} of the artifact from the workspace path
+   */
+  private File findPomFile(Artifact artifact, File workspacePath) {
+    Plugin shadeMavenPlugin =
+        searchForMavenShadePlugin(MavenModelFactory.createMavenProject(new File(workspacePath, POM_XML)));
+    if (shadeMavenPlugin != null) {
+      // TODO (gfernandes) add support for reading the plugin configuration using Xpp3 Maven API
+      // MavenXpp3Reader.parsePluginConfiguration(...)
+      File reducedPom = new File(workspacePath, REDUCED_POM_XML);
+      if (!reducedPom.exists()) {
+        throw new IllegalStateException(artifact + " has in its build configure the " + shadeMavenPlugin + " but default "
+            + REDUCED_POM_XML
+            + " is not present. Run the plugin first.");
+      }
+      logger.debug("Using {} for artifact {}", reducedPom, artifact);
+      return reducedPom;
+    } else {
+      return new File(workspacePath, POM_XML);
+    }
+  }
+
+  /**
+   * Not need to specify the versions here.
+   *
+   * @param artifact to look for its versions
+   * @return an empty {@link List}
+   */
+  @Override
+  public List<String> findVersions(Artifact artifact) {
+    return emptyList();
   }
 
   /**

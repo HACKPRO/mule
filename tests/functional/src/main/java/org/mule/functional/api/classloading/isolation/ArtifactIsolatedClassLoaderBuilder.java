@@ -64,7 +64,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link ClassPathClassifier} implementation to be used by the builder.
    *
-   * @param classPathClassifier
+   * @param classPathClassifier {@link ClassPathClassifier} implementation to be used by the builder.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setClassPathClassifier(final ClassPathClassifier classPathClassifier) {
@@ -75,7 +75,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link ClassPathUrlProvider} implementation to be used by the builder.
    *
-   * @param classPathUrlProvider
+   * @param classPathUrlProvider {@link ClassPathUrlProvider} implementation to be used by the builder.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setClassPathUrlProvider(final ClassPathUrlProvider classPathUrlProvider) {
@@ -86,7 +86,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link WorkspaceLocationResolver} implementation to be used by the builder.
    *
-   * @param workspaceLocationResolver
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} implementation to be used by the builder.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setWorkspaceLocationResolver(final WorkspaceLocationResolver workspaceLocationResolver) {
@@ -97,7 +97,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link File} rootArtifactClassesFolder to be used by the classification process.
    *
-   * @param rootArtifactClassesFolder
+   * @param rootArtifactClassesFolder {@link File} rootArtifactClassesFolder to be used by the classification process.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setRootArtifactClassesFolder(final File rootArtifactClassesFolder) {
@@ -108,7 +108,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link File} rootArtifactTestClassesFolder to be used by the classification process.
    *
-   * @param rootArtifactTestClassesFolder
+   * @param rootArtifactTestClassesFolder {@link File} rootArtifactTestClassesFolder to be used by the classification process.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setRootArtifactTestClassesFolder(final File rootArtifactTestClassesFolder) {
@@ -119,7 +119,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
    *
-   * @param muleContainerCoordinates
+   * @param muleContainerCoordinates Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setMuleContainerCoordinates(final String muleContainerCoordinates) {
@@ -131,7 +131,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
    * Sets the Mule container artifact version to be used for resolving container dependencies and building the class loader.
    * If no version is defined the one from rootArtifact would be used.
    *
-   * @param muleContainerVersion
+   * @param muleContainerVersion Mule container artifact version to be used for resolving container dependencies and building the class loader.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setMuleContainerVersion(final String muleContainerVersion) {
@@ -142,7 +142,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
    *
-   * @param muleContainerExclusions
+   * @param muleContainerExclusions Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setMuleContainerExclusions(final List<String> muleContainerExclusions) {
@@ -153,7 +153,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link List} of exclusion packages to be used by the classification process.
    *
-   * @param applicationArtifactExclusionsCoordinates
+   * @param applicationArtifactExclusionsCoordinates {@link List} of exclusion packages to be used by the classification process.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setApplicationArtifactExclusionsCoordinates(final List<String> applicationArtifactExclusionsCoordinates) {
@@ -164,7 +164,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link List} of extra boot packages to be used by the classification process.
    *
-   * @param extraBootPackages
+   * @param extraBootPackages {@link List} of extra boot packages to be used by the classification process.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setExtraBootPackages(final List<String> extraBootPackages) {
@@ -175,7 +175,7 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets the {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing purposes only.
    *
-   * @param exportPluginClasses
+   * @param exportPluginClasses {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing purposes only.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setExportPluginClasses(final Set<Class> exportPluginClasses) {

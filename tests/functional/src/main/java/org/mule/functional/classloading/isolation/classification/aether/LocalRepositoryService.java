@@ -53,7 +53,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TODO:
+ * Provides Maven artifacts resolutions base on {@link RepositorySystem} from Eclipse Aether.
+ * <p/>
+ * Dependencies are resolved using the {@link org.eclipse.aether.repository.WorkspaceReader} or Maven local repository. It works
+ * in {@code offline} so any missing {@link Artifact} while resolving the dependency graph will throw an error.
+ * <p/>
+ * It is assumed that before this is used either Maven triggered the build (and resolved any dependency missing) or JUnit through
+ * the IDE (which in that case references to Maven artifacts were already resolved).
+ *
+ * @since 4.0
  */
 public class LocalRepositoryService {
 
@@ -161,7 +169,7 @@ public class LocalRepositoryService {
       return result;
     } catch (ArtifactResolutionException e) {
       throw new IllegalStateException("Couldn't resolve artifact: '" + artifact
-          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository", e);
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven repository", e);
     }
   }
 
