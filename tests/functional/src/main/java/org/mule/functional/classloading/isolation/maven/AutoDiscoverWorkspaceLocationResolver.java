@@ -13,6 +13,7 @@ import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
 import static java.nio.file.Paths.get;
+import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
 
 import java.io.File;
 import java.io.FileReader;
@@ -22,6 +23,7 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.maven.model.Model;
@@ -29,9 +31,12 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
 
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import org.mule.runtime.core.util.StringMessageUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
 
 /**
  * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
@@ -97,6 +102,12 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     } catch (IOException e) {
       throw new RuntimeException("Error while discovering Maven projects from path: " + currentDir.toPath());
     }
+
+    logger.debug("Workspace location discover process completed");
+    List<String> messages = Lists.newArrayList("Workspace:");
+    messages.add(" ");
+    messages.addAll(filePathByArtifactId.keySet());
+    logger.debug(StringMessageUtils.getBoilerPlate(Lists.newArrayList(messages), '*', DEFAULT_MESSAGE_WIDTH));
   }
 
   /**

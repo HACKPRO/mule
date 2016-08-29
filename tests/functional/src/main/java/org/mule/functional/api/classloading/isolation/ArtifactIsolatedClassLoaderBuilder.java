@@ -48,6 +48,9 @@ public class ArtifactIsolatedClassLoaderBuilder {
 
   private File rootArtifactClassesFolder;
   private File rootArtifactTestClassesFolder;
+  private String muleContainerCoordinates;
+  private String muleContainerVersion;
+  private List<String> muleContainerExclusions;
   private List<String> applicationArtifactExclusionsCoordinates = newArrayList();
   private List<String> extraBootPackages = newArrayList();
   private List<String> pluginCoordinates = newArrayList();
@@ -114,6 +117,40 @@ public class ArtifactIsolatedClassLoaderBuilder {
   }
 
   /**
+   * Sets the Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
+   *
+   * @param muleContainerCoordinates
+   * @return this
+   */
+  public ArtifactIsolatedClassLoaderBuilder setMuleContainerCoordinates(final String muleContainerCoordinates) {
+    this.muleContainerCoordinates = muleContainerCoordinates;
+    return this;
+  }
+
+  /**
+   * Sets the Mule container artifact version to be used for resolving container dependencies and building the class loader.
+   * If no version is defined the one from rootArtifact would be used.
+   *
+   * @param muleContainerVersion
+   * @return this
+   */
+  public ArtifactIsolatedClassLoaderBuilder setMuleContainerVersion(final String muleContainerVersion) {
+    this.muleContainerVersion = muleContainerVersion;
+    return this;
+  }
+
+  /**
+   * Sets Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
+   *
+   * @param muleContainerExclusions
+   * @return this
+   */
+  public ArtifactIsolatedClassLoaderBuilder setMuleContainerExclusions(final List<String> muleContainerExclusions) {
+    this.muleContainerExclusions = muleContainerExclusions;
+    return this;
+  }
+
+  /**
    * Sets the {@link List} of exclusion packages to be used by the classification process.
    *
    * @param applicationArtifactExclusionsCoordinates
@@ -165,6 +202,9 @@ public class ArtifactIsolatedClassLoaderBuilder {
       context =
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
                                          workspaceLocationResolver,
+                                         muleContainerCoordinates,
+                                         muleContainerVersion,
+                                         muleContainerExclusions,
                                          applicationArtifactExclusionsCoordinates, extraBootPackages,
                                          pluginCoordinates, exportPluginClasses);
     } catch (IOException e) {

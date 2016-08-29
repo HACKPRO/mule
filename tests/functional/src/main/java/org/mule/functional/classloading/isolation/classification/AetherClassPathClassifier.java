@@ -8,6 +8,7 @@
 package org.mule.functional.classloading.isolation.classification;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
 import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.artifact.JavaScopes.TEST;
@@ -51,13 +52,12 @@ import org.slf4j.LoggerFactory;
  */
 public class AetherClassPathClassifier implements ClassPathClassifier {
 
-  // TODO: this should be configured!
-  public static final String MULE_STANDALONE_ARTIFACT =
-      "org.mule.distributions:mule-standalone:pom:4.0-SNAPSHOT";
-  public static final String ORG_MULE_TESTS_GROUP_ID = "org.mule.tests";
-  public static final String ORG_MULE_EXTENSIONS_GROUP_ID = "org.mule.extensions";
-  public static final String MULE_EXTENSIONS_ALL_ARTIFACT_ID = "mule-extensions-all";
   public static final String ALL_TESTS_JAR_ARTIFACT_COORDS = "*:*:jar:tests:*";
+
+  public static final String POM = "pom";
+  public static final String POM_XML = POM + ".xml";
+  public static final String MAVEN_COORDINATES_SEPARATOR = ":";
+  public static final String JAR_EXTENSION = "jar";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -66,13 +66,14 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     LocalRepositoryService localRepositoryService =
         new LocalRepositoryService(context.getClassPathURLs(), context.getWorkspaceLocationResolver());
 
-    logger.debug("Getting rootArtifact");
     Artifact rootArtifact = getRootArtifact(context);
-    logger.debug("Building class loaders for rootArtifact: {}", rootArtifact);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Building class loaders for rootArtifact: {}", rootArtifact);
+    }
     List<Dependency> directDependencies = localRepositoryService
         .getDirectDependencies(rootArtifact);
 
-    List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context);
+    List<URL> containerUrls = buildContainerUrlClassification(localRepositoryService, context, rootArtifact);
     List<PluginUrlClassification> pluginUrlClassifications =
         buildPluginUrlClassifications(context, rootArtifact, directDependencies, localRepositoryService);
     List<URL> applicationUrls = buildApplicationUrlClassification(context, rootArtifact, directDependencies,
@@ -83,13 +84,197 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                          applicationUrls);
   }
 
+  /**
+   * Gets the Maven artifact for located at {@link ClassPathClassifierContext#getRootArtifactClassesFolder()}
+   *
+   * @param context {@link ClassPathClassifierContext} for classification process
+   * @return {@link Artifact} that represents the rootArtifact
+   */
   private Artifact getRootArtifact(ClassPathClassifierContext context) {
-    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), "/pom.xml");
+    File pomFile = new File(context.getRootArtifactClassesFolder().getParentFile().getParentFile(), POM_XML);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Reading rootArtifact from pom file: {}", pomFile);
+    }
     Model model = MavenModelFactory.createMavenProject(pomFile);
 
     return new DefaultArtifact(model.getGroupId() != null ? model.getGroupId() : model.getParent().getGroupId(),
                                model.getArtifactId(), model.getPackaging(),
                                model.getVersion() != null ? model.getVersion() : model.getParent().getVersion());
+  }
+
+  private List<URL> buildContainerUrlClassification(LocalRepositoryService localRepositoryService,
+                                                    ClassPathClassifierContext context, Artifact rootArtifact) {
+    String muleContainerCoordinates = context.getMuleContainerCoordinates();
+    if (logger.isDebugEnabled()) {
+      logger.debug("Using Mule container maven coordinates: '{}'", muleContainerCoordinates);
+    }
+    String muleContainerVersion = context.getMuleContainerVersion();
+    if (isBlank(muleContainerVersion)) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("No version defined for mule container, using rootArtifact version");
+      }
+      muleContainerVersion = rootArtifact.getVersion();
+    }
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Mule version set: '{}'", muleContainerVersion);
+    }
+    Artifact muleArtifactDefinition = new DefaultArtifact(muleContainerCoordinates + MAVEN_COORDINATES_SEPARATOR + POM
+        + MAVEN_COORDINATES_SEPARATOR + muleContainerVersion);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Mule container artifact defined to: '{}'", muleArtifactDefinition);
+    }
+
+    ArtifactResult muleContainerArtifactResult =
+        localRepositoryService.resolveArtifact(muleArtifactDefinition);
+
+    List<Exclusion> exclusions = Lists.newArrayList();
+    context.getMuleContainerExclusions().forEach(exclusionCoordinates -> {
+      Artifact exclusionArtifact = new DefaultArtifact(exclusionCoordinates);
+      Exclusion exclusion = new Exclusion(exclusionArtifact.getGroupId(), exclusionArtifact.getArtifactId(),
+                                          exclusionArtifact.getExtension(), exclusionArtifact.getVersion());
+      if (logger.isDebugEnabled()) {
+        logger.debug("Exclusion defined for Mule container: '{}'", exclusion);
+      }
+      exclusions.add(exclusion);
+    });
+
+    if (!context.getExcludedArtifacts().isEmpty()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Filtering artifacts using coordinates: {}", context.getExcludedArtifacts());
+      }
+    }
+    List<URL> containerUrls = toUrl(localRepositoryService
+        .resolveDependencies(new Dependency(muleContainerArtifactResult.getArtifact(),
+                                            PROVIDED, false, exclusions),
+                             new PatternExclusionsDependencyFilter(context.getExcludedArtifacts())));
+
+    containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith(POM_XML)).collect(toList());
+    resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
+    return containerUrls;
+  }
+
+  private List<PluginUrlClassification> buildPluginUrlClassifications(ClassPathClassifierContext context,
+                                                                      Artifact rootArtifact,
+                                                                      List<Dependency> directDependencies,
+                                                                      LocalRepositoryService localRepositoryService) {
+    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
+    if (context.getPluginCoordinates() != null) {
+      for (String pluginCoords : context.getPluginCoordinates()) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("Building plugin classification for coordinates: '{}'", pluginCoords);
+        }
+
+        final String[] pluginSplitCoords = pluginCoords.split(MAVEN_COORDINATES_SEPARATOR);
+        String pluginGroupId = pluginSplitCoords[0];
+        String pluginArtifactId = pluginSplitCoords[1];
+        String pluginVersion;
+
+        if (rootArtifact.getGroupId().equals(pluginGroupId) && rootArtifact.getArtifactId().equals(pluginArtifactId)) {
+          if (logger.isDebugEnabled()) {
+            logger.debug("'{}' declared as plugin, resolving version from pom file", rootArtifact);
+          }
+          pluginVersion = rootArtifact.getVersion();
+        } else {
+          if (logger.isDebugEnabled()) {
+            logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
+          }
+          Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
+              : directDependencies.stream().filter(dependency -> dependency.getArtifact().getGroupId().equals(pluginGroupId)
+                  && dependency.getArtifact().getArtifactId().equals(pluginArtifactId)).findFirst();
+          if (!pluginDependencyOp.isPresent() || !pluginDependencyOp.get().getScope().endsWith(PROVIDED)) {
+            throw new IllegalStateException("Plugin '" + pluginCoords
+                + "' in order to be resolved has to be declared as provided direct dependency of your Maven project");
+          }
+          Dependency pluginDependency = pluginDependencyOp.get();
+          pluginVersion = pluginDependency.getArtifact().getVersion();
+        }
+
+        final DefaultArtifact artifact = new DefaultArtifact(pluginGroupId, pluginArtifactId, JAR_EXTENSION, pluginVersion);
+        if (logger.isDebugEnabled()) {
+          logger.debug("'{}' plugin coordinates resolved to: '{}'", pluginCoords, artifact);
+        }
+        List<URL> urls = toUrl(localRepositoryService
+            .resolveDependencies(
+                                 new Dependency(artifact,
+                                                COMPILE),
+                                 classpathFilter(COMPILE)));
+
+        // TODO (gfernandes): How could I check if exported classes belong to this plugin?
+        pluginUrlClassifications
+            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportPluginClasses())));
+      }
+    }
+    return pluginUrlClassifications;
+  }
+
+  private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
+                                                      Artifact rootArtifact,
+                                                      List<Dependency> directDependencies,
+                                                      LocalRepositoryService localRepositoryService,
+                                                      List<PluginUrlClassification> pluginUrlClassifications) {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Building application classification");
+    }
+    List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
+
+    directDependencies = directDependencies.stream()
+        .map(toTransform -> {
+          if (toTransform.getScope().equals(TEST)) {
+            return new Dependency(toTransform.getArtifact(), COMPILE);
+          }
+          return toTransform;
+        }).collect(toList());
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Setting filter for dependency graph to include: '{}'", ALL_TESTS_JAR_ARTIFACT_COORDS);
+    }
+    DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
+                                                                              ALL_TESTS_JAR_ARTIFACT_COORDS);
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("OR exclude: {}", context.getExcludedArtifacts());
+    }
+    dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()),
+                                dependencyFilter);
+
+    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("OR exclude application specific artifacts: {}", context.getApplicationArtifactExclusionsCoordinates());
+      }
+      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getApplicationArtifactExclusionsCoordinates()),
+                                  dependencyFilter);
+    }
+
+    boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
+        && pluginUrlClassifications.stream().filter(p -> {
+          Artifact plugin = new DefaultArtifact(p.getName());
+          return plugin.getGroupId().equals(rootArtifact.getGroupId())
+              && plugin.getArtifactId().equals(rootArtifact.getArtifactId());
+        }).findFirst().isPresent();
+    if (!isRootArtifactPlugin) {
+      if (context.getRootArtifactClassesFolder().exists()) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("RootArtifact is not a plugin so '{}' is added to application classification",
+                       context.getRootArtifactClassesFolder());
+        }
+        applicationFiles.add(context.getRootArtifactClassesFolder());
+      } else {
+        if (logger.isDebugEnabled()) {
+          logger.debug("{} rootArtifact marked as a test artifact only, it doesn't have a target/classes folder", rootArtifact);
+        }
+        dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(rootArtifact.toString()));
+      }
+    }
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Resolving dependency graph for '{}' scope direct dependencies: {}", TEST, directDependencies);
+    }
+    applicationFiles
+        .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST), directDependencies,
+                                                           dependencyFilter));
+
+    return toUrl(applicationFiles);
   }
 
   private List<URL> getBootLauncherURLs(ClassPathClassifierContext context) {
@@ -106,115 +291,6 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       logger.debug("First URL for artifact found in classpath: " + firstArtifactURL.get());
     }
     return context.getClassPathURLs().subList(0, context.getClassPathURLs().indexOf(firstArtifactURL.get()));
-  }
-
-  private List<URL> buildApplicationUrlClassification(ClassPathClassifierContext context,
-                                                      Artifact rootArtifact,
-                                                      List<Dependency> directDependencies,
-                                                      LocalRepositoryService localRepositoryService,
-                                                      List<PluginUrlClassification> pluginUrlClassifications) {
-    List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
-
-    directDependencies = directDependencies.stream()
-        .map(toTransform -> {
-          if (toTransform.getScope().equals(TEST)) {
-            return new Dependency(toTransform.getArtifact(), COMPILE);
-          }
-          return toTransform;
-        }).collect(toList());
-    DependencyFilter dependencyFilter = new PatternInclusionsDependencyFilter(
-                                                                              ALL_TESTS_JAR_ARTIFACT_COORDS);
-    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
-      dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(context.getApplicationArtifactExclusionsCoordinates()),
-                                  dependencyFilter);
-    }
-
-    boolean isRootArtifactPlugin = !pluginUrlClassifications.isEmpty()
-        && pluginUrlClassifications.stream().filter(p -> {
-          Artifact plugin = new DefaultArtifact(p.getName());
-          return plugin.getGroupId().equals(rootArtifact.getGroupId())
-              && plugin.getArtifactId().equals(rootArtifact.getArtifactId());
-        }).findFirst().isPresent();
-    if (!isRootArtifactPlugin) {
-      if (context.getRootArtifactClassesFolder().exists()) {
-        applicationFiles.add(context.getRootArtifactClassesFolder());
-      } else {
-        logger.debug("'{}' rootArtifact marked as a test artifact only, it doesn't have a target/classes folder", rootArtifact);
-        dependencyFilter = orFilter(new PatternExclusionsDependencyFilter(rootArtifact.toString()));
-      }
-    }
-
-    applicationFiles
-        .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST), directDependencies,
-                                                           dependencyFilter));
-
-    return toUrl(applicationFiles);
-  }
-
-  private List<PluginUrlClassification> buildPluginUrlClassifications(ClassPathClassifierContext context,
-                                                                      Artifact rootArtifact,
-                                                                      List<Dependency> directDependencies,
-                                                                      LocalRepositoryService localRepositoryService) {
-    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
-    if (context.getPluginCoordinates() != null) {
-      for (String pluginCoords : context.getPluginCoordinates()) {
-        logger.debug("Resolving plugin coordinates: '{}'", pluginCoords);
-
-        final String[] pluginSplitCoords = pluginCoords.split(":");
-        String pluginGroupId = pluginSplitCoords[0];
-        String pluginArtifactId = pluginSplitCoords[1];
-        String pluginVersion;
-
-        if (rootArtifact.getGroupId().equals(pluginGroupId) && rootArtifact.getArtifactId().equals(pluginArtifactId)) {
-          logger.debug("'{}' declared as plugin, resolving version from pom file", rootArtifact);
-          pluginVersion = rootArtifact.getVersion();
-        } else {
-          logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
-          Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
-              : directDependencies.stream().filter(dependency -> dependency.getArtifact().getGroupId().equals(pluginGroupId)
-                  && dependency.getArtifact().getArtifactId().equals(pluginArtifactId)).findFirst();
-          if (!pluginDependencyOp.isPresent() || !pluginDependencyOp.get().getScope().endsWith(PROVIDED)) {
-            throw new IllegalStateException("Plugin '" + pluginCoords
-                + "' in order to be resolved has to be declared as provided direct dependency of your Maven project");
-          }
-          Dependency pluginDependency = pluginDependencyOp.get();
-          pluginVersion = pluginDependency.getArtifact().getVersion();
-        }
-
-        final DefaultArtifact artifact = new DefaultArtifact(pluginGroupId, pluginArtifactId, "jar", pluginVersion);
-        logger.debug("'{}' plugin coordinates resolved to: '{}'", pluginCoords, artifact);
-        List<URL> urls = toUrl(localRepositoryService
-            .resolveDependencies(
-                                 new Dependency(artifact,
-                                                COMPILE),
-                                 classpathFilter(COMPILE)));
-
-        // TODO: check if exported classes already belong to this plugin...
-        pluginUrlClassifications
-            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportPluginClasses())));
-        // TODO generate extension metadata!
-      }
-    }
-    return pluginUrlClassifications;
-  }
-
-  private List<URL> buildContainerUrlClassification(LocalRepositoryService localRepositoryService,
-                                                    ClassPathClassifierContext context) {
-    ArtifactResult muleContainerArtifactResult =
-        localRepositoryService.resolveArtifact(new DefaultArtifact(MULE_STANDALONE_ARTIFACT));
-
-    List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(new Dependency(muleContainerArtifactResult.getArtifact(),
-                                            PROVIDED, false, Lists.newArrayList(
-                                                                                new Exclusion(ORG_MULE_EXTENSIONS_GROUP_ID,
-                                                                                              MULE_EXTENSIONS_ALL_ARTIFACT_ID,
-                                                                                              "*", "*"),
-                                                                                new Exclusion(ORG_MULE_TESTS_GROUP_ID, "*", "*",
-                                                                                              "*"))),
-                             new PatternExclusionsDependencyFilter("junit:*:*:*", "org.hamcrest:*:*:*")));
-    containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith("pom.xml")).collect(toList());
-    resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
-    return containerUrls;
   }
 
   /**
@@ -277,10 +353,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
           logger.warn(
                       "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL",
                       artifactResolvedFile);
-          //logger.warn(
-          //            "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL therefore it is going to be ignored",
-          //            artifactResolvedFile);
-          //listIterator.remove();
+          // logger.warn(
+          // "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL therefore it
+          // is going to be ignored",
+          // artifactResolvedFile);
+          // listIterator.remove();
         }
       }
     }

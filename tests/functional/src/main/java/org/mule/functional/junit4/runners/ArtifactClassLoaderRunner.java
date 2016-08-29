@@ -10,6 +10,7 @@ import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFrom;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFromHierarchy;
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.internal.builders.AnnotatedBuilder;
 import org.junit.runner.Description;
@@ -129,11 +131,33 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setRootArtifactClassesFolder(new File(targetTestClassesFolder.getParentFile(), "classes"));
     builder.setRootArtifactTestClassesFolder(targetTestClassesFolder);
 
+    List<String> muleContainerCoordinates =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "muleContainerCoordinates");
+    Optional<String> muleContainerCoordinatesOp =
+        muleContainerCoordinates.stream().filter(coordinates -> isNotBlank(coordinates)).findFirst();
+    if (muleContainerCoordinatesOp.isPresent()) {
+      builder.setMuleContainerCoordinates(muleContainerCoordinatesOp.get());
+    }
+
+    List<String> muleContainerVersions = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
+                                                                             "muleContainerVersion");
+    Optional<String> muleContainerVersionsOp = muleContainerVersions.stream().filter(version -> isNotBlank(version)).findFirst();
+    if (muleContainerVersionsOp.isPresent()) {
+      builder.setMuleContainerVersion(muleContainerVersionsOp.get());
+    }
+
+    List<String[]> muleContainerExclusionsList =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
+                                            "muleContainerExclusions");
+    builder.setMuleContainerExclusions(muleContainerExclusionsList.stream()
+        .flatMap(Arrays::stream).collect(toList()));
+
     List<String[]> applicationArtifactExclusionsDependencyFilterList =
         getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
                                             "applicationArtifactExclusionsDependencyFilter");
     builder.setApplicationArtifactExclusionsCoordinates(applicationArtifactExclusionsDependencyFilterList.stream()
         .flatMap(Arrays::stream).collect(toList()));
+
     builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
 
     List<Class[]> exportPluginClassesList =

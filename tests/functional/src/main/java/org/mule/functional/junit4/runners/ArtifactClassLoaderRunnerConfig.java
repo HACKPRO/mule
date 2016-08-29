@@ -36,8 +36,9 @@ import java.lang.annotation.Target;
 @Inherited
 public @interface ArtifactClassLoaderRunnerConfig {
 
-  //TODO
   String muleContainerCoordinates() default "";
+
+  String muleContainerVersion() default "";
 
   String[] muleContainerExclusions() default {};
 
