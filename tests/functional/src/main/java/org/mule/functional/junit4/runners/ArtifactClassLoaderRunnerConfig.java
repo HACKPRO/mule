@@ -36,10 +36,29 @@ import java.lang.annotation.Target;
 @Inherited
 public @interface ArtifactClassLoaderRunnerConfig {
 
+  /**
+   * Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
+   * This artifact is going to be used for resolving dependencies and artifact that would go to the container class loader.
+   * Most of the cases this value will be set with Mule Standalone artifact.
+   *
+   * @return Maven coordiantes in format of {@code <groupId>:<artifactId>} for Mule container.
+   */
   String muleContainerCoordinates() default "";
 
+  /**
+   * Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact version.
+   * Needed for those cases when the application being tested or developed is outside Mule code.
+   *
+   * @return Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact version.
+   */
   String muleContainerVersion() default "";
 
+  /**
+   * Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * It is needed for those artifacts that are defined for the container but will have conflicts with the hierarchical class loader, e.g.: boot artifacts in Mule Standalone.
+   *
+   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
+   */
   String[] muleContainerExclusions() default {};
 
   /**
@@ -55,7 +74,7 @@ public @interface ArtifactClassLoaderRunnerConfig {
   String extraBootPackages() default "";
 
   /**
-   * Plugins in the format of {@code [groupId]:[artifactId]} to be loaded and registered to Mule Container during the execution of
+   * Plugins in the format of {@code <groupId>:<artifactId>} to be loaded and registered to Mule Container during the execution of
    * the test. {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader} will be created for each plugin.
    * <p/>
    * If the current artifact being tested is a plugin it would need to be declared here the groupId and artifactId, its
@@ -102,8 +121,6 @@ public @interface ArtifactClassLoaderRunnerConfig {
    */
   // TODO: MULE-10083 - Improve how ArtifactClassLoaderRunner classifies the classpath for selecting which artifacts are already
   // bundled within the container
-
-  //TODO as array
   String[] applicationArtifactExclusionsDependencyFilter() default {};
 
 }
