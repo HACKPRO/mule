@@ -53,7 +53,7 @@ public class WorkspaceDependencySelector implements DependencySelector {
    */
   @Override
   public boolean selectDependency(Dependency dependency) {
-    File workspaceRef = workspaceLocationResolver.resolvePath(dependency.getArtifact());
+    File workspaceRef = workspaceLocationResolver.resolvePath(dependency.getArtifact().getArtifactId());
     if (workspaceRef == null || dependency.getArtifact().getExtension().equals(POM)) {
       return true;
     }

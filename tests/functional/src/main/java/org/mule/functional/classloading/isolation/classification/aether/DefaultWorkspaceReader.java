@@ -114,7 +114,7 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
       return null;
     }
 
-    File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact);
+    File workspaceArtifactPath = workspaceLocationResolver.resolvePath(artifact.getArtifactId());
     if (workspaceArtifactPath == null) {
       // Cannot be resolved in workspace so delegate its resolution to the Maven local repository
       return null;

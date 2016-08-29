@@ -149,14 +149,11 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   }
 
   /**
-   * Resolves the {@link File} from the discovered artifacts from the file system workspace.
-   *
-   * @param artifact to resolve its {@link File} from the workspace
-   * @return {@link File} to the artifact of null if not found
+   * {@inheritDoc}
    */
   @Override
-  public File resolvePath(Artifact artifact) {
-    return filePathByArtifactId.get(artifact.getArtifactId());
+  public File resolvePath(String artifactId) {
+    return filePathByArtifactId.get(artifactId);
   }
 
   /**
