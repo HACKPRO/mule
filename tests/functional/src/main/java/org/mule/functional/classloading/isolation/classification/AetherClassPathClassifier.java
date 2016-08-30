@@ -72,6 +72,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   public static final String POM_XML = POM + ".xml";
   public static final String MAVEN_COORDINATES_SEPARATOR = ":";
   public static final String JAR_EXTENSION = "jar";
+  public static final String SNAPSHOT_WILCARD_FILE_FILTER = "*-SNAPSHOT*.*";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -401,8 +402,73 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     return urls;
   }
 
-  // http://www.codegur.me/27185052/intellij-uses-snapshots-with-timestamps-instead-of-snapshot-to-build-artifact
+
+  /**
+   * As Eclipse Aether resolves SNAPSHOT versions without pointing to a timestamped version (actually they are normalized, in
+   * Maven language) and IDEs could have built the class path with timestamped SNAPSHOT versions this method will check for those
+   * cases and replace the SNAPSHOT normalized {@link URL} entry in the resolvedURLs parameter with the timestamped version from
+   * the classpathURLs entry.
+   *
+   * @param resolvedURLs {@link URL}s resolved from the dependency graph
+   * @param classpathURLs {@link URL}s already provided in class path by IDE or Maven
+   */
   private void resolveSnapshotVersionsFromClasspath(List<URL> resolvedURLs, List<URL> classpathURLs) {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Checking if resolved SNAPSHOT URLs had a timestamped version already included in class path URLs");
+    }
+    Map<File, List<URL>> classpathFolders = groupArtifactURLsByFolder(classpathURLs);
+
+    FileFilter snapshotFileFilter = new WildcardFileFilter(SNAPSHOT_WILCARD_FILE_FILTER);
+    ListIterator<URL> listIterator = resolvedURLs.listIterator();
+    while (listIterator.hasNext()) {
+      final URL urlResolved = listIterator.next();
+      File artifactResolvedFile = new File(urlResolved.getFile());
+      if (snapshotFileFilter.accept(artifactResolvedFile)) {
+        File artifactResolvedFileParentFile = artifactResolvedFile.getParentFile();
+        if (logger.isDebugEnabled()) {
+          logger.debug("Checking if resolved SNAPSHOT artifact: '{}' has a timestamped version already in class path",
+                       artifactResolvedFile);
+        }
+        URL urlFromClassPath = null;
+        if (classpathFolders.containsKey(artifactResolvedFileParentFile)) {
+          urlFromClassPath = findArtifactUrlFromClassPath(classpathFolders, artifactResolvedFile);
+        }
+
+        if (urlFromClassPath != null) {
+          if (logger.isDebugEnabled()) {
+            logger.debug("Replacing resolved URL '{}' from class path URL '{}'", urlResolved, urlFromClassPath);
+          }
+          listIterator.set(urlFromClassPath);
+        } else {
+          logger.warn(
+                      "'{}' resolved SNAPSHOT version couldn't be matched to a class path URL",
+                      artifactResolvedFile);
+        }
+      }
+    }
+  }
+
+  /**
+   * Creates a {@link Map} that has as key the folder that holds the artifact and value a {@link List} of {@link URL}s. For
+   * instance, an artifact in class path that only has its jar packaged output:
+   * 
+   * <pre>
+   *   key=/Users/jdoe/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/
+   *   value=[file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32.jar]
+   * </pre>
+   * <p/>
+   * Another case is for those artifacts that have both packaged versions, the jar and the -tests.jar. For instance:
+   * 
+   * <pre>
+   *   key=/Users/jdoe/Development/mule/extensions/file/target
+   *   value=[file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32.jar,
+   *          file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32-tests.jar]
+   * </pre>
+   *
+   * @param classpathURLs the class path {@link List} of {@link URL}s to be grouped by folder
+   * @return {@link Map} that has as key the folder that holds the artifact and value a {@link List} of {@link URL}s.
+   */
+  private Map<File, List<URL>> groupArtifactURLsByFolder(List<URL> classpathURLs) {
     Map<File, List<URL>> classpathFolders = Maps.newHashMap();
     classpathURLs.forEach(url -> {
       File folder = new File(url.getFile()).getParentFile();
@@ -412,40 +478,38 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         classpathFolders.put(folder, Lists.newArrayList(url));
       }
     });
+    return classpathFolders;
+  }
 
-    // TODO: improve this code! shame on you gfernandes! this is a terrible hack!
-    FileFilter snapshotFileFilter = new WildcardFileFilter("*-SNAPSHOT*.*");
-    ListIterator<URL> listIterator = resolvedURLs.listIterator();
-    while (listIterator.hasNext()) {
-      File artifactResolvedFile = new File(listIterator.next().getFile());
-      if (snapshotFileFilter.accept(artifactResolvedFile)) {
-        File artifactResolvedFileParentFile = artifactResolvedFile.getParentFile();
-        if (classpathFolders.containsKey(artifactResolvedFileParentFile)) {
-          List<URL> urls = classpathFolders.get(artifactResolvedFileParentFile);
-          if (urls.size() == 1) {
-            listIterator.set(urls.get(0));
-          } else {
-            for (URL url : urls) {
-              if (artifactResolvedFile.getName().endsWith("-tests.jar")) {
-                if (url.getFile().endsWith("-tests.jar")) {
-                  listIterator.set(url);
-                  break;
-                }
-              } else {
-                if (!url.getFile().endsWith("-tests.jar")) {
-                  listIterator.set(url);
-                  break;
-                }
-              }
-            }
+  /**
+   * Finds the corresponding {@link URL} in class path grouped by folder {@link Map} for the given artifact {@link File}.
+   *
+   * @param classpathFolders a {@link Map} that has as entry the folder of the artifacts from class path and value a {@link List}
+   *        with the artifacts (jar, tests.jar, etc).
+   * @param artifactResolvedFile the {@link Artifact} resolved from the Maven dependencies and resolved as SNAPSHOT
+   * @return {@link URL} for the artifact found in the class path or {@code null}
+   */
+  private URL findArtifactUrlFromClassPath(Map<File, List<URL>> classpathFolders, File artifactResolvedFile) {
+    List<URL> urls = classpathFolders.get(artifactResolvedFile.getParentFile());
+    if (logger.isDebugEnabled()) {
+      logger.debug("URLs found for '{}' in class path are: {}", artifactResolvedFile, urls);
+    }
+    if (urls.size() == 1) {
+      return urls.get(0);
+    } else {
+      for (URL url : urls) {
+        if (artifactResolvedFile.getName().endsWith("-tests.jar")) {
+          if (url.getFile().endsWith("-tests.jar")) {
+            return url;
           }
         } else {
-          logger.warn(
-                      "'{}' resolved SNAPSHOT version from URL Container dependencies couldn't be matched to a classpath URL",
-                      artifactResolvedFile);
+          if (!url.getFile().endsWith("-tests.jar")) {
+            return url;
+          }
         }
       }
     }
+    return null;
   }
 
 }

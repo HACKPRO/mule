@@ -40,15 +40,16 @@ import org.junit.runners.model.TestClass;
 
 /**
  * A {@link org.junit.runner.Runner} that mimics the class loading model used in a standalone container. In order to detect early
- * issues related to isolation when building plugins these runner allow you to run your functional test cases using an isolated
+ * issues related to isolation when building plugins these runner allows you to run your functional test cases using an isolated
  * class loader.
  * <p/>
  * {@link org.mule.functional.junit4.ArtifactFunctionalTestCase} should be extended in order to use this runner, it has already
- * annotated the runner and also has the logic to configure extension into {@link org.mule.runtime.core.api.MuleContext}.
+ * annotated the runner and also has the logic to register {@link org.mule.runtime.extension.api.annotation.Extension} to a
+ * {@link org.mule.runtime.core.api.MuleContext}.
  * <p/>
  * See {@link RunnerDelegateTo} for those scenarios where another JUnit runner needs to be used but still the test has to be
- * executed within an isolated class loading model. {@link ArtifactClassLoaderRunnerConfig} allows to define the Extensions to be
- * discovered in the classpath, for each Extension a plugin class loader would be created. {@link PluginClassLoadersAware} allows
+ * executed within an isolated class loading model. {@link ArtifactClassLoaderRunnerConfig} allows to define the plugins in order
+ * to create the class loaders for them, for each Extension a plugin class loader would be created. {@link PluginClassLoadersAware} allows
  * the test to be injected with the list of {@link ClassLoader}s that were created for each plugin, mostly used in
  * {@link org.mule.functional.junit4.ArtifactFunctionalTestCase} in order to register the extensions.
  * <p/>
@@ -76,9 +77,9 @@ import org.junit.runners.model.TestClass;
  */
 public class ArtifactClassLoaderRunner extends Runner implements Filterable {
 
-  private final Runner delegate;
   private static ArtifactClassLoaderHolder artifactClassLoaderHolder;
   private static boolean pluginClassLoadersInjected = false;
+  private final Runner delegate;
 
   /**
    * Creates a Runner to run {@code klass}
@@ -104,14 +105,6 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     if (!pluginClassLoadersInjected) {
       injectPluginsClassLoaders(artifactClassLoaderHolder, isolatedTestClass);
       pluginClassLoadersInjected = true;
-    }
-  }
-
-  private Class<?> getTestClass(Class<?> clazz) throws InitializationError {
-    try {
-      return artifactClassLoaderHolder.loadClassWithApplicationClassLoader(clazz.getName());
-    } catch (Exception e) {
-      throw new InitializationError(e);
     }
   }
 
@@ -218,6 +211,14 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
       } finally {
         method.getMethod().setAccessible(false);
       }
+    }
+  }
+
+  private Class<?> getTestClass(Class<?> clazz) throws InitializationError {
+    try {
+      return artifactClassLoaderHolder.loadClassWithApplicationClassLoader(clazz.getName());
+    } catch (Exception e) {
+      throw new InitializationError(e);
     }
   }
 

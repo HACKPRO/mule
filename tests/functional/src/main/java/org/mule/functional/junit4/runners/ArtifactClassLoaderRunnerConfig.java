@@ -17,14 +17,13 @@ import java.lang.annotation.Target;
  * Specifies a configuration needed by {@link ArtifactClassLoaderRunner} in order to run the tests in the module.
  * <p/>
  * Be aware that this annotation will be loaded for the whole module being tested, it is not supported to have different annotated
- * values for different test classes due to in order to improve the performance for building the {@link ClassLoader} it is created
- * the first time only and used to run several tests.
+ * values for different test classes due to in order to improve the performance a {@link ClassLoader} is created only the first
+ * time and used to run several tests.
  * <p/>
  * A best practice is to have a base abstract class for your module tests that extends
  * {@link org.mule.functional.junit4.ArtifactFunctionalTestCase} or
- * {@link org.mule.functional.junit4.MuleArtifactFunctionalTestCase} for mule internal tests, and defines if needed anything
- * related to the configuration with this annotation that will be applied to all the tests that are being executed for the same
- * module.
+ * {@link org.mule.functional.junit4.MuleArtifactFunctionalTestCase} for mule internal tests, to define the isolation runner
+ * configuration using {@code this} annotation that applies to all the tests that are being executed for the same module.
  * <p/>
  * The concept of module of execution is being backed by a JVM where a JVM is created for running the whole test of the module, in
  * case of maven either IDEs.
@@ -37,27 +36,36 @@ import java.lang.annotation.Target;
 public @interface ArtifactClassLoaderRunnerConfig {
 
   /**
-   * Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
-   * This artifact is going to be used for resolving dependencies and artifact that would go to the container class loader.
-   * Most of the cases this value will be set with Mule Standalone artifact.
+   * Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification. This artifact
+   * is going to be used for resolving dependencies and artifact that would go to the container class loader. Most of the cases
+   * this value will be set with Mule Standalone artifact. <pre>org.mule.distributions:mule-standalone</pre>
+   * <p/>
+   * When the runner is not being executed from a Workspace that has the Mule artifacts it will be required to be installed in your local
+   * repository the Mule Standalone artifact. In order to do that the following command has to be executed:
+   * <pre>
+   * mvn org.apache.maven.plugins:maven-dependency-plugin:get -Dartifact=org.mule.distributions:mule-standalone:4.0-SNAPSHOT:pom -DrepoUrl=https://repository.mulesoft.org/nexus/content/repositories/public/
+   * </pre>
    *
    * @return Maven coordiantes in format of {@code <groupId>:<artifactId>} for Mule container.
    */
   String muleContainerCoordinates() default "";
 
   /**
-   * Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact version.
-   * Needed for those cases when the application being tested or developed is outside Mule code.
+   * Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact
+   * version. Needed for those cases when the application being tested or developed is outside Mule code.
    *
-   * @return Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact version.
+   * @return Maven version to define the Mule container to be used for classification. If no value is passed it will use the
+   *         rootArtifact version.
    */
   String muleContainerVersion() default "";
 
   /**
-   * Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
-   * It is needed for those artifacts that are defined for the container but will have conflicts with the hierarchical class loader, e.g.: boot artifacts in Mule Standalone.
+   * Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
+   * {@code <groupId>:<artifactId>:<extension>:<version>}. It is needed for those artifacts that are defined for the container but
+   * will have conflicts with the hierarchical class loader, e.g.: boot artifacts in Mule Standalone.
    *
-   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
+   *         {@code <groupId>:<artifactId>:<extension>:<version>}.
    */
   String[] muleContainerExclusions() default {};
 

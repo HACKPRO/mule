@@ -120,7 +120,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
     if (rootProjectDirectoryProperty != null) {
       logger.debug(
-                   "Using Maven System.property['{}']='' to find out project root directory for discovering poms",
+                   "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
                    MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
     } else {
       logger.debug(
