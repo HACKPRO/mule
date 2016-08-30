@@ -1586,6 +1586,10 @@
                             <!-- exclude inner classes -->
                             <exclude>**/*$*</exclude>
                         </excludes>
+                        <systemPropertyVariables>
+                            <!-- Just propagate this variable due to surefire will not do this when forked vm for tests -->
+                            <maven.multiModuleProjectDirectory>${maven.multiModuleProjectDirectory}</maven.multiModuleProjectDirectory>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>

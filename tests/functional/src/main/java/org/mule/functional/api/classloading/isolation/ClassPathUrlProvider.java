@@ -8,7 +8,6 @@
 package org.mule.functional.api.classloading.isolation;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.mule.runtime.core.util.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 
@@ -38,7 +37,7 @@ public class ClassPathUrlProvider {
    * Creates an instance of the provider that uses system properties to get the classpath {@link URL}s.
    */
   public ClassPathUrlProvider() {
-    this.urls = new ArrayList<>();
+    this(new ArrayList<>());
   }
 
 
@@ -49,15 +48,16 @@ public class ClassPathUrlProvider {
    */
   public ClassPathUrlProvider(List<URL> urls) {
     checkNotNull(urls, "urls cannot be null");
-    checkArgument(urls.size() > 0, "urls cannot be empty");
 
-    this.urls = urls;
+    this.urls = readUrlsFromSystemProperties();
+    this.urls.addAll(urls);
   }
 
   /**
-   * @return Gets the urls from the {@code sun.boot.class.path} and {@code java.class.path} system properties.
+   * @return Gets the urls from the {@code sun.boot.class.path} and {@code java.class.path} and {@code surefire.test.class.path}
+   *         system properties.
    */
-  public List<URL> getURLs() {
+  private List<URL> readUrlsFromSystemProperties() {
     final Set<URL> urls = new LinkedHashSet<>();
     addUrlsFromSystemProperty(urls, "sun.boot.class.path");
     addUrlsFromSystemProperty(urls, "java.class.path");
@@ -69,9 +69,11 @@ public class ClassPathUrlProvider {
       logger.debug(builder.toString());
     }
 
-    urls.addAll(this.urls);
-
     return Lists.newArrayList(urls);
+  }
+
+  public List<URL> getURLs() {
+    return this.urls;
   }
 
   protected void addUrlsFromSystemProperty(final Collection<URL> urls, final String propertyName) {

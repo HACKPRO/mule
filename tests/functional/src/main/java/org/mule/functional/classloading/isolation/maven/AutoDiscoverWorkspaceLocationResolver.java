@@ -15,6 +15,10 @@ import static java.nio.file.Files.walkFileTree;
 import static java.nio.file.Paths.get;
 import static java.util.stream.Collectors.toList;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import org.mule.runtime.core.util.StringMessageUtils;
+
+import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.io.FileReader;
@@ -31,14 +35,8 @@ import java.util.Map;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
-
-import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
-import org.mule.runtime.core.util.StringMessageUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
 
 /**
  * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
@@ -259,6 +257,9 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
       if (isPomFile(file.toFile())) {
         Model model = readMavenPomFile(file.toFile());
         Path location = file.getParent();
+        if (logger.isDebugEnabled()) {
+          logger.debug("Checking if location {} is already present in class path", location);
+        }
         if (this.classPath.contains(location)) {
           resolvedArtifact(model.getArtifactId(), location);
         }

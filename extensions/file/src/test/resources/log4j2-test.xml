@@ -22,6 +22,7 @@
         <AsyncLogger name="com.mulesoft" level="WARN"/>
 
         <AsyncLogger name="org.mule.functional.classloading.isolation" level="TRACE"/>
+        <AsyncLogger name="org.mule.functional.api.classloading.isolation" level="TRACE"/>
 
         <AsyncRoot level="INFO">
             <AppenderRef ref="Console"/>
