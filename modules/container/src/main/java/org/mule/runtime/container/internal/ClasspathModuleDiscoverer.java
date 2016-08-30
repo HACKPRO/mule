@@ -25,7 +25,7 @@ import java.util.Set;
 public class ClasspathModuleDiscoverer implements ModuleDiscoverer {
 
   public static final String MODULE_PROPERTIES = "META-INF/mule-module.properties";
-  private volatile ClassLoader classLoader;
+  private final ClassLoader classLoader;
 
   public ClasspathModuleDiscoverer(ClassLoader classLoader) {
     this.classLoader = classLoader;

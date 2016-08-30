@@ -23,7 +23,6 @@ import com.icegreen.greenmail.user.GreenMailUser;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 
-import org.apache.commons.lang3.BooleanUtils;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -46,8 +45,6 @@ public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestC
     server = new GreenMail(serverSetup);
     server.start();
     user = server.setUser(JUANI_EMAIL, JUANI_EMAIL, "password");
-
-    BooleanUtils.isTrue(true);
   }
 
   @Override

@@ -8,10 +8,10 @@
 package org.mule.functional.api.classloading.isolation;
 
 import static org.apache.commons.lang.StringUtils.isNotBlank;
+import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils.EXCLUDED_PROPERTIES_FILE;
 import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils.getExcludedProperties;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import static org.mule.runtime.core.util.Preconditions.checkState;
-import org.mule.functional.classloading.isolation.utils.RunnerModuleUtils;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -225,7 +225,7 @@ public class ClassPathClassifierContext {
         packages.add(extraBootPackage);
       }
     } else {
-      logger.warn(RunnerModuleUtils.EXCLUDED_PROPERTIES_FILE
+      logger.warn(EXCLUDED_PROPERTIES_FILE
           + " found but there is no list of extra boot packages defined to be added to container, this could be the reason why the test may fail later due to JUnit classes are not found");
     }
     return packages;
