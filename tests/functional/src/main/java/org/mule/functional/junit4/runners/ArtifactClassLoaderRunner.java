@@ -130,7 +130,7 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
         getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
                                             "providedInclusions");
     builder.setProvidedInclusions(providedInclusionsList.stream()
-                                      .flatMap(Arrays::stream).collect(toList()));
+        .flatMap(Arrays::stream).collect(toList()));
 
     List<String[]> applicationArtifactExclusionsDependencyFilterList =
         getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,

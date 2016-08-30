@@ -134,6 +134,17 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
   }
 
   /**
+   * Not need to specify the versions here.
+   *
+   * @param artifact to look for its versions
+   * @return an empty {@link List}
+   */
+  @Override
+  public List<String> findVersions(Artifact artifact) {
+    return emptyList();
+  }
+
+  /**
    * Resolves the location of the {@value #POM_XML} {@link File} taking into account {@value #MAVEN_SHADE_PLUGIN_ARTIFACT_ID}
    * plugin.
    *
@@ -158,17 +169,6 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
     } else {
       return new File(workspacePath, POM_XML);
     }
-  }
-
-  /**
-   * Not need to specify the versions here.
-   *
-   * @param artifact to look for its versions
-   * @return an empty {@link List}
-   */
-  @Override
-  public List<String> findVersions(Artifact artifact) {
-    return emptyList();
   }
 
   /**
