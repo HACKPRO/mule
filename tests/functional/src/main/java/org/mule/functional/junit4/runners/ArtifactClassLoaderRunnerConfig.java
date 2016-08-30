@@ -36,38 +36,13 @@ import java.lang.annotation.Target;
 public @interface ArtifactClassLoaderRunnerConfig {
 
   /**
-   * Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification. This artifact
-   * is going to be used for resolving dependencies and artifact that would go to the container class loader. Most of the cases
-   * this value will be set with Mule Standalone artifact. <pre>org.mule.distributions:mule-standalone</pre>
-   * <p/>
-   * When the runner is not being executed from a Workspace that has the Mule artifacts it will be required to be installed in your local
-   * repository the Mule Standalone artifact. In order to do that the following command has to be executed:
-   * <pre>
-   * mvn org.apache.maven.plugins:maven-dependency-plugin:get -Dartifact=org.mule.distributions:mule-standalone:4.0-SNAPSHOT:pom -DrepoUrl=https://repository.mulesoft.org/nexus/content/repositories/public/
-   * </pre>
+   * Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
+   * {@code <groupId>:<artifactId>:<extension>:<version>}.
    *
-   * @return Maven coordiantes in format of {@code <groupId>:<artifactId>} for Mule container.
-   */
-  String muleContainerCoordinates() default "";
-
-  /**
-   * Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact
-   * version. Needed for those cases when the application being tested or developed is outside Mule code.
-   *
-   * @return Maven version to define the Mule container to be used for classification. If no value is passed it will use the
-   *         rootArtifact version.
-   */
-  String muleContainerVersion() default "";
-
-  /**
-   * Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
-   * {@code <groupId>:<artifactId>:<extension>:<version>}. It is needed for those artifacts that are defined for the container but
-   * will have conflicts with the hierarchical class loader, e.g.: boot artifacts in Mule Standalone.
-   *
-   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
+   * @return Maven artifacts to be excluded {@code provided} scope direct dependencies of the rootArtifact. In format
    *         {@code <groupId>:<artifactId>:<extension>:<version>}.
    */
-  String[] muleContainerExclusions() default {};
+  String[] providedExclusions() default {};
 
   /**
    * In case if a particular test needs to add extra boot packages to append to the ones already defined in the

@@ -8,7 +8,6 @@
 package org.mule.functional.classloading.isolation.classification;
 
 import static java.util.stream.Collectors.toList;
-import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
 import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.artifact.JavaScopes.TEST;
@@ -41,8 +40,6 @@ import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
-import org.eclipse.aether.graph.Exclusion;
-import org.eclipse.aether.resolution.ArtifactResult;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,7 +92,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     List<Dependency> directDependencies = localRepositoryService
         .getDirectDependencies(rootArtifact);
 
-    List<URL> containerUrls = buildContainerUrlClassification(context, rootArtifact, localRepositoryService);
+    List<URL> containerUrls = buildContainerUrlClassification(context, directDependencies, localRepositoryService);
     List<PluginUrlClassification> pluginUrlClassifications =
         buildPluginUrlClassifications(context, rootArtifact, directDependencies, localRepositoryService);
     List<URL> applicationUrls = buildApplicationUrlClassification(context, rootArtifact, directDependencies,
@@ -125,66 +122,38 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   /**
-   * Container classification is being done by resolving the dependencies to the
-   * {@link ClassPathClassifierContext#getMuleContainerCoordinates()} for the given
-   * {@link ClassPathClassifierContext#getMuleContainerVersion()} and with the given
-   * {@link ClassPathClassifierContext#getMuleContainerExclusions()}.
-   * <p/>
-   * Default filtering will also be applied to the dependency graph resolution:
-   * {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} and {@value org.eclipse.aether.util.artifact.JavaScopes#TEST}
-   * and excluded artifacts defined by {@link ClassPathClassifierContext#getExcludedArtifacts()}.
+   * Container classification is being done by resolving the {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} direct dependencies of the rootArtifact.
+   * Is uses the exclusions defined in {@link ClassPathClassifierContext#getProvidedExclusions()} to filter the dependency graph plus {@value #ALL_TESTS_JAR_ARTIFACT_COORDS}
+   * and {@link ClassPathClassifierContext#getExcludedArtifacts()}.
    *
    * @param context {@link ClassPathClassifierContext} with settings for the classification process
-   * @param rootArtifact {@link Artifact} that defines the current artifact that requested to build this class loaders
    * @param localRepositoryService {@link LocalRepositoryService} to resolve Maven dependencies
    * @return {@link List} of {@link URL}s for the container class loader
    */
-  private List<URL> buildContainerUrlClassification(ClassPathClassifierContext context, Artifact rootArtifact,
+  private List<URL> buildContainerUrlClassification(ClassPathClassifierContext context,
+                                                    List<Dependency> directDependencies,
                                                     LocalRepositoryService localRepositoryService) {
-    String muleContainerCoordinates = context.getMuleContainerCoordinates();
-    if (logger.isDebugEnabled()) {
-      logger.debug("Using Mule container maven coordinates: '{}'", muleContainerCoordinates);
-    }
-    String muleContainerVersion = context.getMuleContainerVersion();
-    if (isBlank(muleContainerVersion)) {
-      if (logger.isDebugEnabled()) {
-        logger.debug("No version defined for mule container, using rootArtifact version");
+    directDependencies = directDependencies.stream().map(dependency -> {
+      if (dependency.getScope().equals(PROVIDED)) {
+        return dependency.setScope(COMPILE);
+      } else if (!dependency.getScope().equals(TEST)) {
+        // TEST and PROVIDED are by default excluded by Eclipse Aether resolution process
+        return dependency.setScope(PROVIDED);
       }
-      muleContainerVersion = rootArtifact.getVersion();
-    }
-
+      return dependency;
+    }).collect(toList());
     if (logger.isDebugEnabled()) {
-      logger.debug("Mule version set: '{}'", muleContainerVersion);
-    }
-    Artifact muleArtifactDefinition = new DefaultArtifact(muleContainerCoordinates + MAVEN_COORDINATES_SEPARATOR + POM
-        + MAVEN_COORDINATES_SEPARATOR + muleContainerVersion);
-    if (logger.isDebugEnabled()) {
-      logger.debug("Mule container artifact defined to: '{}'", muleArtifactDefinition);
+      logger.debug("Selected direct dependencies to be used for resolving container dependency graph: {}", directDependencies);
     }
 
-    ArtifactResult muleContainerArtifactResult =
-        localRepositoryService.resolveArtifact(muleArtifactDefinition);
+    List<String> excludedFilterPattern = Lists.newArrayList(context.getProvidedExclusions());
+    excludedFilterPattern.add(ALL_TESTS_JAR_ARTIFACT_COORDS);
+    excludedFilterPattern.addAll(context.getExcludedArtifacts());
 
-    List<Exclusion> exclusions = Lists.newArrayList();
-    context.getMuleContainerExclusions().forEach(exclusionCoordinates -> {
-      Artifact exclusionArtifact = new DefaultArtifact(exclusionCoordinates);
-      Exclusion exclusion = new Exclusion(exclusionArtifact.getGroupId(), exclusionArtifact.getArtifactId(),
-                                          exclusionArtifact.getExtension(), exclusionArtifact.getVersion());
-      if (logger.isDebugEnabled()) {
-        logger.debug("Exclusion defined for Mule container: '{}'", exclusion);
-      }
-      exclusions.add(exclusion);
-    });
-
-    if (!context.getExcludedArtifacts().isEmpty()) {
-      if (logger.isDebugEnabled()) {
-        logger.debug("Filtering artifacts using coordinates: {}", context.getExcludedArtifacts());
-      }
-    }
     List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(new Dependency(muleContainerArtifactResult.getArtifact(),
-                                            PROVIDED, false, exclusions),
-                             new PatternExclusionsDependencyFilter(context.getExcludedArtifacts())));
+        .resolveDependencies(null, directDependencies,
+                             //new PatternExclusionsDependencyFilter(context.getExcludedArtifacts())));
+                             new PatternExclusionsDependencyFilter(excludedFilterPattern)));
 
     containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith(POM_XML)).collect(toList());
     resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
@@ -454,15 +423,15 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * 
    * <pre>
    *   key=/Users/jdoe/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/
-   *   value=[file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32.jar]
+   *   value=[file:/Users/jdoe/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32.jar]
    * </pre>
    * <p/>
    * Another case is for those artifacts that have both packaged versions, the jar and the -tests.jar. For instance:
    * 
    * <pre>
    *   key=/Users/jdoe/Development/mule/extensions/file/target
-   *   value=[file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32.jar,
-   *          file:/Users/guillermofernandes/.m2/repository/org/mule/extensions/mule-extensions-api-xml-dsl/1.0.0-SNAPSHOT/mule-extensions-api-xml-dsl-1.0.0-20160823.170911-32-tests.jar]
+   *   value=[file:/Users/jdoe/.m2/repository/org/mule/modules/mule-module-file-extension-common/4.0-SNAPSHOT/mule-module-file-extension-common-4.0-SNAPSHOT.jar,
+   *          file:/Users/jdoe/.m2/repository/org/mule/modules/mule-module-file-extension-common/4.0-SNAPSHOT/mule-module-file-extension-common-4.0-SNAPSHOT-tests.jar]
    * </pre>
    *
    * @param classpathURLs the class path {@link List} of {@link URL}s to be grouped by folder

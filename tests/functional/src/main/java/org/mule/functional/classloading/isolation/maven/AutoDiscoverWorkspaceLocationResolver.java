@@ -13,15 +13,13 @@ import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
 import static java.nio.file.Paths.get;
+import static java.util.stream.Collectors.toList;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
-import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
-import org.mule.runtime.core.util.StringMessageUtils;
-
-import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Path;
@@ -33,8 +31,14 @@ import java.util.Map;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.eclipse.aether.artifact.Artifact;
+
+import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
+import org.mule.runtime.core.util.StringMessageUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
 
 /**
  * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
@@ -48,14 +52,13 @@ import org.slf4j.LoggerFactory;
  * {@value #USER_DIR_SYSTEM_PROPERTY} or {@value #ROOT_PROJECT_ENV_VAR}, or it stops at any parent folder that it is not a Maven
  * project (by checking if it has a {@value #POM_XML_FILE}).
  * <p/>
- * Once root parent pom if found, it traverse the file tree to register each Maven project (module) and location. For the
+ * Once root if found, it traverse the file tree to register each Maven project (module) and location. For the
  * rootProjectDirectory if both variables {@value #USER_DIR_SYSTEM_PROPERTY} and {@value #ROOT_PROJECT_ENV_VAR} are set it will
  * take precedence the one from Maven. If no one of them is set most likely it will register only the Maven project located at
  * {@value #USER_DIR_SYSTEM_PROPERTY}, if it is a Maven project, and artifacts will be resolved using Maven repositories.
  * <p/>
- * Be aware that it is not supported to have Maven multi-module projects in your workspace (IDE or Maven build session) without a
- * parent pom to group them. If that's the case you will end up with resolutions to artifacts to the local repository instead of
- * using them from its compiled files.
+ * For each Maven project found it will check if it is present in the class path {@link URL}'s in order to build an accurate
+ * Workspace.
  *
  * @since 4.0
  */
@@ -76,9 +79,10 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   /**
    * Creates an instance of this class.
    *
+   * @param classPath {@link URL}'s defined in class path
    * @throws IllegalArgumentException if the {@value #USER_DIR_SYSTEM_PROPERTY} doesn't point to a Maven project.
    */
-  public AutoDiscoverWorkspaceLocationResolver() {
+  public AutoDiscoverWorkspaceLocationResolver(List<URL> classPath) {
     File userDir = new File(getProperty(USER_DIR_SYSTEM_PROPERTY));
     logger.debug("Discovering workspace artifacts locations from System.property['{}']='{}'", USER_DIR_SYSTEM_PROPERTY, userDir);
     if (!containsMavenProject(userDir)) {
@@ -97,7 +101,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
 
     logger.debug("Top folder found, parent pom found at: '{}'", lastMavenProjectDir);
     try {
-      walkFileTree(lastMavenProjectDir.toPath(), new MavenDiscovererFileVisitor());
+      walkFileTree(lastMavenProjectDir.toPath(), new MavenDiscovererFileVisitor(classPath));
     } catch (IOException e) {
       throw new RuntimeException("Error while discovering Maven projects from path: " + currentDir.toPath());
     }
@@ -238,6 +242,13 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    */
   private class MavenDiscovererFileVisitor implements FileVisitor<Path> {
 
+    private List<Path> classPath;
+
+    public MavenDiscovererFileVisitor(List<URL> urlClassPath) {
+      this.classPath =
+          urlClassPath.stream().map(url -> new File(url.getFile()).getParentFile().getParentFile().toPath()).collect(toList());
+    }
+
     @Override
     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
       return getPomFile(dir.toFile()).exists() ? CONTINUE : SKIP_SUBTREE;
@@ -247,7 +258,10 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
       if (isPomFile(file.toFile())) {
         Model model = readMavenPomFile(file.toFile());
-        resolvedArtifact(model.getArtifactId(), file.getParent());
+        Path location = file.getParent();
+        if (this.classPath.contains(location)) {
+          resolvedArtifact(model.getArtifactId(), location);
+        }
       }
       return CONTINUE;
     }

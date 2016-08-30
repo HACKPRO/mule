@@ -7,14 +7,9 @@
 
 package org.mule.functional.api.classloading.isolation;
 
-import static org.apache.commons.lang.StringUtils.isNotBlank;
 import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils.EXCLUDED_PROPERTIES_FILE;
 import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils.getExcludedProperties;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import static org.mule.runtime.core.util.Preconditions.checkState;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +20,9 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 /**
  * Represents a context that contains what is needed in order to do a classpath classification. It is used in
@@ -43,9 +41,7 @@ public class ClassPathClassifierContext {
   private final File rootArtifactTestClassesFolder;
   private final List<URL> classPathURLs;
   private final WorkspaceLocationResolver workspaceLocationResolver;
-  private final String muleContainerCoordinates;
-  private final String muleContainerVersion;
-  private final List<String> muleContainerExclusions;
+  private final List<String> providedExclusions;
   private final List<String> excludedArtifacts = Lists.newArrayList();
   private final List<String> applicationArtifactExclusionsCoordinates;
   private final Set<String> extraBootPackages;
@@ -61,9 +57,8 @@ public class ClassPathClassifierContext {
    * @param classPathURLs the whole set of {@link URL}s that were loaded by IDE/Maven Surefire plugin when running the test. Not
    *        null.
    * @param workspaceLocationResolver {@link WorkspaceLocationResolver} for artifactIds. Not null.
-   * @apram muleContainerCoordinates Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
-   * @param muleContainerVersion Maven version to define the Mule container to be used for classification. If no value is passed it will use the rootArtifact version.
-   * @param muleContainerExclusions Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * @param providedExclusions Maven artifacts to be excluded from the provided scope direct dependencies of rootArtifact. In
+   *        format {@code <groupId>:<artifactId>:<extension>:<version>}.
    * @param applicationArtifactExclusionsCoordinates {@link List} of Maven coordinates to be excluded from application class
    *        loader.
    * @param extraBootPackagesList {@link List} of {@link String}'s packages to be added as boot packages to the container.
@@ -77,9 +72,7 @@ public class ClassPathClassifierContext {
   public ClassPathClassifierContext(final File rootArtifactClassesFolder, final File rootArtifactTestClassesFolder,
                                     final List<URL> classPathURLs,
                                     final WorkspaceLocationResolver workspaceLocationResolver,
-                                    final String muleContainerCoordinates,
-                                    final String muleContainerVersion,
-                                    final List<String> muleContainerExclusions,
+                                    final List<String> providedExclusions,
                                     final List<String> applicationArtifactExclusionsCoordinates,
                                     final List<String> extraBootPackagesList,
                                     final List<String> pluginCoordinates,
@@ -89,15 +82,12 @@ public class ClassPathClassifierContext {
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder cannot be null");
     checkNotNull(classPathURLs, "classPathURLs cannot be null");
     checkNotNull(workspaceLocationResolver, "workspaceLocationResolver cannot be null");
-    checkState(isNotBlank(muleContainerCoordinates), "muleContainerCoordinates cannot be null, empty or blank");
 
     this.rootArtifactClassesFolder = rootArtifactClassesFolder;
     this.rootArtifactTestClassesFolder = rootArtifactTestClassesFolder;
     this.classPathURLs = classPathURLs;
     this.workspaceLocationResolver = workspaceLocationResolver;
-    this.muleContainerCoordinates = muleContainerCoordinates;
-    this.muleContainerVersion = muleContainerVersion;
-    this.muleContainerExclusions = muleContainerExclusions;
+    this.providedExclusions = providedExclusions;
 
     Properties excludedProperties = getExcludedProperties();
     String excludedArtifacts = excludedProperties.getProperty(EXCLUDED_ARTIFACTS);
@@ -143,28 +133,16 @@ public class ClassPathClassifierContext {
   }
 
   /**
-   * @return Maven coordinates in format of {@code <groupId>:<artifactId>} for Mule container to be used for classification.
+   * @return Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
+   *         {@code <groupId>:<artifactId>:<extension>:<version>}.
    */
-  public String getMuleContainerCoordinates() {
-    return muleContainerCoordinates;
+  public List<String> getProvidedExclusions() {
+    return this.providedExclusions;
   }
 
   /**
-   * @return Maven version to define the Mule container to be used for classification. Can be {@code null}.
-   */
-  public String getMuleContainerVersion() {
-    return muleContainerVersion;
-  }
-
-  /**
-   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:<extension>:<version>}.
-   */
-  public List<String> getMuleContainerExclusions() {
-    return this.muleContainerExclusions;
-  }
-
-  /**
-   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format {@code <groupId>:<artifactId>:[extension]:<version>}.
+   * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
+   *         {@code <groupId>:<artifactId>:[extension]:<version>}.
    */
   public List<String> getExcludedArtifacts() {
     return this.excludedArtifacts;

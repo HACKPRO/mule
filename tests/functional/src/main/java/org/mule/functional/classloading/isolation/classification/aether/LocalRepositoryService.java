@@ -47,7 +47,6 @@ import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
-import org.eclipse.aether.util.graph.selector.AndDependencySelector;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,9 +93,9 @@ public class LocalRepositoryService {
     // questions regarding usage of that library to the Maven mailing list.
     // SettingsBuilder settingsBuilder = new DefaultSettingsBuilderFactory().newInstance();
 
-    session
-        .setDependencySelector(new AndDependencySelector(session.getDependencySelector(),
-                                                         new WorkspaceDependencySelector(classPath, workspaceLocationResolver)));
+    // session
+    // .setDependencySelector(new AndDependencySelector(session.getDependencySelector(),
+    // new WorkspaceDependencySelector(classPath, workspaceLocationResolver)));
 
     system = newRepositorySystem();
 
@@ -202,6 +201,9 @@ public class LocalRepositoryService {
    * <p/>
    * If both a root dependency and direct dependencies are given, the direct dependencies will be merged with the direct
    * dependencies from the root dependency's artifact descriptor, giving higher priority to the dependencies from the root.
+   * <p/>
+   * If the resolution of dependencies fail it will continue with the resolved ones and log a warning message to allow
+   * troubleshooting.
    *
    * @param root {@link Dependency} node from to collect its dependencies
    * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
@@ -227,8 +229,17 @@ public class LocalRepositoryService {
       }
 
       node = system.resolveDependencies(session, dependencyRequest).getRoot();
-    } catch (DependencyCollectionException | DependencyResolutionException e) {
-      throw new RuntimeException("Error while resolving dependencies", e);
+    } catch (DependencyCollectionException e) {
+      throw new RuntimeException("Error while collecting dependencies", e);
+    } catch (DependencyResolutionException e) {
+      logger.warn(
+                  "Dependencies couldn't be resolved, {}. " +
+                      "It will continue assuming that class path should be correctly fulfilled by Maven or IDE. " +
+                      " Check this list of not resolved dependencies because it may the case of a third-party dependency " +
+                      "that is overridden at your artifact Maven dependencies pom (by Maven nearest resolution algorithm). " +
+                      "This means that on these artifact it may not be possible to support multiple versions at different class loader levels.",
+                  e.getMessage());
+      node = e.getResult().getRoot();
     }
 
     List<File> files = getFiles(node);
