@@ -6,10 +6,8 @@
  */
 package org.mule.functional.junit4.runners;
 
-import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFrom;
 import static org.mule.functional.util.AnnotationUtils.getAnnotationAttributeFromHierarchy;
 import static org.mule.runtime.core.util.ClassUtils.withContextClassLoader;
@@ -128,37 +126,28 @@ public class ArtifactClassLoaderRunner extends Runner implements Filterable {
     builder.setProvidedExclusions(providedExclusionsList.stream()
         .flatMap(Arrays::stream).collect(toList()));
 
+    List<String[]> providedInclusionsList =
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
+                                            "providedInclusions");
+    builder.setProvidedInclusions(providedInclusionsList.stream()
+                                      .flatMap(Arrays::stream).collect(toList()));
+
     List<String[]> applicationArtifactExclusionsDependencyFilterList =
         getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class,
-                                            "applicationArtifactExclusionsDependencyFilter");
-    builder.setApplicationArtifactExclusionsCoordinates(applicationArtifactExclusionsDependencyFilterList.stream()
+                                            "testExclusions");
+    builder.setTestExclusions(applicationArtifactExclusionsDependencyFilterList.stream()
         .flatMap(Arrays::stream).collect(toList()));
-
-    builder.setExtraBootPackages(splitCommaSeparatedAttributeValues("extraBootPackages", klass));
 
     List<Class[]> exportPluginClassesList =
         getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "exportPluginClasses");
     builder.setExportPluginClasses(exportPluginClassesList.stream().flatMap(Arrays::stream).collect(toSet()));
 
     List<String[]> pluginCoordinatesFromHierarchy =
-        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "pluginCoordinates");
+        getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, "plugins");
     builder.setPluginCoordinates(pluginCoordinatesFromHierarchy.stream().flatMap(Arrays::stream).collect(toSet()).stream()
         .collect(toList()));
 
     return builder.build();
-  }
-
-  /**
-   * Gets the {@link List} of values for the annotated attribute by traveling the whole class hierarchy until {@link Object} is
-   * reached. Each value obtained from the annotation can be a comma separated value so it also splits the value to return each
-   * part of it as a entry in the list.
-   *
-   * @param klass the annotated class
-   * @return a {@link List} of values from the annotation
-   */
-  private static List<String> splitCommaSeparatedAttributeValues(String annotatedAttribute, Class<?> klass) {
-    List<String> values = getAnnotationAttributeFromHierarchy(klass, ArtifactClassLoaderRunnerConfig.class, annotatedAttribute);
-    return values.stream().flatMap(value -> stream(value.split(","))).filter(value -> !isBlank(value)).collect(toList());
   }
 
   /**

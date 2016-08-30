@@ -8,6 +8,7 @@
 package org.mule.functional.classloading.isolation.classification;
 
 import static java.util.stream.Collectors.toList;
+import static org.eclipse.aether.util.artifact.ArtifactIdUtils.toId;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
 import static org.eclipse.aether.util.artifact.JavaScopes.PROVIDED;
 import static org.eclipse.aether.util.artifact.JavaScopes.TEST;
@@ -92,9 +93,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     List<Dependency> directDependencies = localRepositoryService
         .getDirectDependencies(rootArtifact);
 
-    List<URL> containerUrls = buildContainerUrlClassification(context, directDependencies, localRepositoryService);
     List<PluginUrlClassification> pluginUrlClassifications =
         buildPluginUrlClassifications(context, rootArtifact, directDependencies, localRepositoryService);
+
+    List<URL> containerUrls =
+        buildContainerUrlClassification(context, directDependencies, localRepositoryService, pluginUrlClassifications);
     List<URL> applicationUrls = buildApplicationUrlClassification(context, rootArtifact, directDependencies,
                                                                   localRepositoryService, pluginUrlClassifications);
     List<URL> bootLauncherUrls = getBootLauncherURLs(context);
@@ -122,26 +125,24 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   /**
-   * Container classification is being done by resolving the {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} direct dependencies of the rootArtifact.
-   * Is uses the exclusions defined in {@link ClassPathClassifierContext#getProvidedExclusions()} to filter the dependency graph plus {@value #ALL_TESTS_JAR_ARTIFACT_COORDS}
-   * and {@link ClassPathClassifierContext#getExcludedArtifacts()}.
+   * Container classification is being done by resolving the {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} direct
+   * dependencies of the rootArtifact. Is uses the exclusions defined in
+   * {@link ClassPathClassifierContext#getProvidedExclusions()} to filter the dependency graph plus
+   * {@value #ALL_TESTS_JAR_ARTIFACT_COORDS} and {@link ClassPathClassifierContext#getExcludedArtifacts()}.
    *
    * @param context {@link ClassPathClassifierContext} with settings for the classification process
    * @param localRepositoryService {@link LocalRepositoryService} to resolve Maven dependencies
+   * @param pluginUrlClassifications {@link PluginUrlClassification}s to check if rootArtifact was classified as plugin
    * @return {@link List} of {@link URL}s for the container class loader
    */
   private List<URL> buildContainerUrlClassification(ClassPathClassifierContext context,
                                                     List<Dependency> directDependencies,
-                                                    LocalRepositoryService localRepositoryService) {
-    directDependencies = directDependencies.stream().map(dependency -> {
-      if (dependency.getScope().equals(PROVIDED)) {
-        return dependency.setScope(COMPILE);
-      } else if (!dependency.getScope().equals(TEST)) {
-        // TEST and PROVIDED are by default excluded by Eclipse Aether resolution process
-        return dependency.setScope(PROVIDED);
-      }
-      return dependency;
-    }).collect(toList());
+                                                    LocalRepositoryService localRepositoryService,
+                                                    List<PluginUrlClassification> pluginUrlClassifications) {
+    directDependencies = directDependencies.stream()
+        .filter(directDep -> directDep.getScope().equals(PROVIDED))
+        .map(depToTransform -> depToTransform.setScope(COMPILE)).collect(toList());
+
     if (logger.isDebugEnabled()) {
       logger.debug("Selected direct dependencies to be used for resolving container dependency graph: {}", directDependencies);
     }
@@ -149,14 +150,29 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     List<String> excludedFilterPattern = Lists.newArrayList(context.getProvidedExclusions());
     excludedFilterPattern.add(ALL_TESTS_JAR_ARTIFACT_COORDS);
     excludedFilterPattern.addAll(context.getExcludedArtifacts());
+    if (!pluginUrlClassifications.isEmpty()) {
+      excludedFilterPattern.addAll(pluginUrlClassifications.stream()
+          .map(pluginUrlClassification -> pluginUrlClassification.getName()).collect(toList()));
+    }
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Resolving dependencies for container using exclusion filter patterns: {}", excludedFilterPattern);
+    }
+    if (!context.getProvidedInclusions().isEmpty()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Resolving dependencies for container using inclusion filter patterns: {}", context.getProvidedInclusions());
+      }
+    }
 
     List<URL> containerUrls = toUrl(localRepositoryService
         .resolveDependencies(null, directDependencies,
-                             //new PatternExclusionsDependencyFilter(context.getExcludedArtifacts())));
-                             new PatternExclusionsDependencyFilter(excludedFilterPattern)));
+                             orFilter(new org.eclipse.aether.util.filter.PatternInclusionsDependencyFilter(context
+                                 .getProvidedInclusions()), new PatternExclusionsDependencyFilter(excludedFilterPattern))));
 
     containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith(POM_XML)).collect(toList());
+
     resolveSnapshotVersionsFromClasspath(containerUrls, context.getClassPathURLs());
+
     return containerUrls;
   }
 
@@ -227,7 +243,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
 
         // TODO (gfernandes): How could I check if exported classes belong to this plugin?
         pluginUrlClassifications
-            .add(new PluginUrlClassification(artifact.toString(), urls, Lists.newArrayList(context.getExportPluginClasses())));
+            .add(new PluginUrlClassification(toId(artifact), urls, Lists.newArrayList(context.getExportPluginClasses())));
       }
     }
     return pluginUrlClassifications;
@@ -245,7 +261,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * <p/>
    * Filtering logic includes the following pattern to include all the tests-jar dependencies:
    * {@value #ALL_TESTS_JAR_ARTIFACT_COORDS}. It also excludes {@link ClassPathClassifierContext#getExcludedArtifacts()},
-   * {@link ClassPathClassifierContext#getApplicationArtifactExclusionsCoordinates()}.
+   * {@link ClassPathClassifierContext#getTestExclusions()} ()}.
    * <p/>
    * If the application artifact has not been classified as plugin its {@code target/classes/} folder will be included in this
    * classification.
@@ -313,11 +329,11 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
     exclusionsPatterns.addAll(context.getExcludedArtifacts());
 
-    if (!context.getApplicationArtifactExclusionsCoordinates().isEmpty()) {
+    if (!context.getTestExclusions().isEmpty()) {
       if (logger.isDebugEnabled()) {
-        logger.debug("OR exclude application specific artifacts: {}", context.getApplicationArtifactExclusionsCoordinates());
+        logger.debug("OR exclude application specific artifacts: {}", context.getTestExclusions());
       }
-      exclusionsPatterns.addAll(context.getApplicationArtifactExclusionsCoordinates());
+      exclusionsPatterns.addAll(context.getTestExclusions());
     }
 
     if (logger.isDebugEnabled()) {

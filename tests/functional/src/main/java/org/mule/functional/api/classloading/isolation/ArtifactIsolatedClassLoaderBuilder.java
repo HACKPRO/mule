@@ -49,10 +49,10 @@ public class ArtifactIsolatedClassLoaderBuilder {
   private File rootArtifactClassesFolder;
   private File rootArtifactTestClassesFolder;
   private List<String> providedExclusions = newArrayList();
-  private List<String> applicationArtifactExclusionsCoordinates = newArrayList();
-  private List<String> extraBootPackages = newArrayList();
+  private List<String> testExclusions = newArrayList();
   private List<String> pluginCoordinates = newArrayList();
   private Set<Class> exportPluginClasses = newHashSet();
+  private List<String> providedInclusions;
 
   public ArtifactIsolatedClassLoaderBuilder setPluginCoordinates(List<String> pluginCoordinates) {
     this.pluginCoordinates = pluginCoordinates;
@@ -117,9 +117,12 @@ public class ArtifactIsolatedClassLoaderBuilder {
   /**
    * Sets Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
    * {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * <p/>
+   * {@link #setPluginCoordinates(List)} Maven artifacts if declared will be considered to be excluded from being added as
+   * {@code provided} due to they are going to be added to its class loaders.
    *
-   * @param providedExclusions Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
-   * {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * @param providedExclusions Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the
+   *        rootArtifact. In format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setProvidedExclusions(final List<String> providedExclusions) {
@@ -128,31 +131,39 @@ public class ArtifactIsolatedClassLoaderBuilder {
   }
 
   /**
-   * Sets the {@link List} of exclusion packages to be used by the classification process.
+   * Sets Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In
+   * format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * <p/>
+   * This artifacts have to be declared as {@code provided} scope in rootArtifact direct dependencies and no matter if they were
+   * excluded or not from {@link #setProvidedExclusions(List)} and {@link #setPluginCoordinates(List)}. Meaning that the same
+   * artifact could ended up being added to the container class loader and as plugin.
    *
-   * @param applicationArtifactExclusionsCoordinates {@link List} of exclusion packages to be used by the classification process.
+   * @param providedInclusions
    * @return this
    */
-  public ArtifactIsolatedClassLoaderBuilder setApplicationArtifactExclusionsCoordinates(final List<String> applicationArtifactExclusionsCoordinates) {
-    this.applicationArtifactExclusionsCoordinates = applicationArtifactExclusionsCoordinates;
+  public ArtifactIsolatedClassLoaderBuilder setProvidedInclusions(List<String> providedInclusions) {
+    this.providedInclusions = providedInclusions;
     return this;
   }
 
   /**
-   * Sets the {@link List} of extra boot packages to be used by the classification process.
+   * Sets the {@link List} of exclusion Maven coordinates to be excluded from test dependencies of rootArtifact. In format
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    *
-   * @param extraBootPackages {@link List} of extra boot packages to be used by the classification process.
+   * @param testExclusions {@link List} of exclusion Maven coordinates to be excluded from test dependencies of rootArtifact. In
+   *        format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    * @return this
    */
-  public ArtifactIsolatedClassLoaderBuilder setExtraBootPackages(final List<String> extraBootPackages) {
-    this.extraBootPackages = extraBootPackages;
+  public ArtifactIsolatedClassLoaderBuilder setTestExclusions(final List<String> testExclusions) {
+    this.testExclusions = testExclusions;
     return this;
   }
 
   /**
    * Sets the {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing purposes only.
    *
-   * @param exportPluginClasses {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing purposes only.
+   * @param exportPluginClasses {@link List} of {@link Class}es to be exported by plugins in addition to their APIs, for testing
+   *        purposes only.
    * @return this
    */
   public ArtifactIsolatedClassLoaderBuilder setExportPluginClasses(final Set<Class> exportPluginClasses) {
@@ -182,7 +193,8 @@ public class ArtifactIsolatedClassLoaderBuilder {
           new ClassPathClassifierContext(rootArtifactClassesFolder, rootArtifactTestClassesFolder, classPathUrlProvider.getURLs(),
                                          workspaceLocationResolver,
                                          providedExclusions,
-                                         applicationArtifactExclusionsCoordinates, extraBootPackages,
+                                         providedInclusions,
+                                         testExclusions,
                                          pluginCoordinates, exportPluginClasses);
     } catch (IOException e) {
       throw new RuntimeException("Error while creating the classification context", e);
@@ -191,4 +203,5 @@ public class ArtifactIsolatedClassLoaderBuilder {
     ArtifactUrlClassification artifactUrlClassification = classPathClassifier.classify(context);
     return isolatedClassLoaderFactory.createArtifactClassLoader(context.getExtraBootPackages(), artifactUrlClassification);
   }
+
 }

@@ -37,24 +37,28 @@ public @interface ArtifactClassLoaderRunnerConfig {
 
   /**
    * Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
-   * {@code <groupId>:<artifactId>:<extension>:<version>}.
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * <p/>
+   * {@link #plugins()} Maven artifacts if declared will be considered to be excluded from being added as {@code provided} due to
+   * they are going to be added to its class loaders.
    *
    * @return Maven artifacts to be excluded {@code provided} scope direct dependencies of the rootArtifact. In format
-   *         {@code <groupId>:<artifactId>:<extension>:<version>}.
+   *         {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
   String[] providedExclusions() default {};
 
   /**
-   * In case if a particular test needs to add extra boot packages to append to the ones already defined in the
-   * {@code excluded.properties}, it will have to define it here by using this annotation method.
+   * Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In format
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * <p/>
+   * This artifacts have to be declared as {@code provided} scope in rootArtifact direct dependencies and no matter if they were excluded
+   * or not from {@link #providedExclusions()}  and {@link #plugins()}. Meanning that the same artifact could ended up being added to the
+   * container class loader and as plugin.
    *
-   * @return a comma separated list of packages to be added as PARENT_ONLY for the container class loader, default (and required)
-   *         packages is empty.
-   *         <p/>
-   *         A default list of extra boot packages is always added to the container class loader, it is defined by the
-   *         {@code excluded.properties} file.
+   * @return Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In format
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
-  String extraBootPackages() default "";
+  String[] providedInclusions() default {};
 
   /**
    * Plugins in the format of {@code <groupId>:<artifactId>} to be loaded and registered to Mule Container during the execution of
@@ -71,7 +75,7 @@ public @interface ArtifactClassLoaderRunnerConfig {
    * @return array of {@link String} to define plugins in order to create for each a plugin {@link ClassLoader}
    */
   // TODO: MULE-10081 - Add support for scanning multiple base packages when discovering extensions
-  String[] pluginCoordinates() default {};
+  String[] plugins() default {};
 
   /**
    * <b>WARNING: do not use this if you want to have a pure isolated test case.</b>
@@ -94,16 +98,16 @@ public @interface ArtifactClassLoaderRunnerConfig {
   Class[] exportPluginClasses() default {};
 
   /**
-   * List of {@code [groupId]:[artifactId]:[extension]:[version]} to define the coordinates of artifacts to be exclused from the
+   * List of {@code <groupId>:<artifactId>:[[<extension>]:<version>]} to define the coordinates of artifacts to be excluded from the
    * application {@link ClassLoader}. Default and base list of artifacts is already defined in {@code excluded.properties} file
    * and by using this annotation the ones defined here will be appended to those defined in file.
    *
-   * @return a comma separated list of coordiantes (it does support wildcards org.mule:*:*:* or *:mule-core:*:* and partial
+   * @return a comma separated list of coordinates (it does support wildcards org.mule:*:*:* or *:mule-core:*:* and partial
    *         matching org.mule*:*:*:*) that would be used in order to exclude artifacts that should not be added to the
    *         application due to they will be already exposed through the container.
    */
   // TODO: MULE-10083 - Improve how ArtifactClassLoaderRunner classifies the classpath for selecting which artifacts are already
   // bundled within the container
-  String[] applicationArtifactExclusionsDependencyFilter() default {};
+  String[] testExclusions() default {};
 
 }

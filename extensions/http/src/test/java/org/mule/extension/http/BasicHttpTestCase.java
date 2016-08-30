@@ -44,8 +44,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 //TODO: MULE-9702 Remove once the tests are migrated.
-@ArtifactClassLoaderRunnerConfig(pluginCoordinates = {"org.mule.modules:mule-module-http-ext",
-    "org.mule.modules:mule-module-sockets"})
+@ArtifactClassLoaderRunnerConfig(plugins = {"org.mule.modules:mule-module-sockets",
+    "org.mule.modules:mule-module-http-ext"}, providedInclusions = "org.mule.modules:mule-module-sockets")
 public class BasicHttpTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

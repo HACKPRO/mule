@@ -233,12 +233,12 @@ public class LocalRepositoryService {
       throw new RuntimeException("Error while collecting dependencies", e);
     } catch (DependencyResolutionException e) {
       logger.warn(
-                  "Dependencies couldn't be resolved, {}. " +
+                  "Dependencies couldn't be resolved for request '{}', {}. " +
                       "It will continue assuming that class path should be correctly fulfilled by Maven or IDE. " +
-                      " Check this list of not resolved dependencies because it may the case of a third-party dependency " +
+                      "Check this list of not resolved dependencies because it may the case of a third-party dependency " +
                       "that is overridden at your artifact Maven dependencies pom (by Maven nearest resolution algorithm). " +
                       "This means that on these artifact it may not be possible to support multiple versions at different class loader levels.",
-                  e.getMessage());
+                  collectRequest, e.getMessage());
       node = e.getResult().getRoot();
     }
 

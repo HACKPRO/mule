@@ -11,6 +11,9 @@ import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils
 import static org.mule.functional.classloading.isolation.utils.RunnerModuleUtils.getExcludedProperties;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -20,9 +23,6 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 /**
  * Represents a context that contains what is needed in order to do a classpath classification. It is used in
@@ -43,10 +43,11 @@ public class ClassPathClassifierContext {
   private final WorkspaceLocationResolver workspaceLocationResolver;
   private final List<String> providedExclusions;
   private final List<String> excludedArtifacts = Lists.newArrayList();
-  private final List<String> applicationArtifactExclusionsCoordinates;
+  private final List<String> testExclusions;
   private final Set<String> extraBootPackages;
   private final List<String> pluginCoordinates;
   private final Set<Class> exportPluginClasses;
+  private final List<String> providedInclusions;
 
   /**
    * Creates a context used for doing the classification of the class path.
@@ -58,10 +59,10 @@ public class ClassPathClassifierContext {
    *        null.
    * @param workspaceLocationResolver {@link WorkspaceLocationResolver} for artifactIds. Not null.
    * @param providedExclusions Maven artifacts to be excluded from the provided scope direct dependencies of rootArtifact. In
-   *        format {@code <groupId>:<artifactId>:<extension>:<version>}.
-   * @param applicationArtifactExclusionsCoordinates {@link List} of Maven coordinates to be excluded from application class
-   *        loader.
-   * @param extraBootPackagesList {@link List} of {@link String}'s packages to be added as boot packages to the container.
+   *        format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * @param providedInclusions Maven artifacts to be excluded from the provided scope direct dependencies of rootArtifact. In
+   *        format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * @param testExclusions {@link List} of Maven coordinates to be excluded from application class loader.
    * @param pluginCoordinates {@link List} of Maven coordinates in format {@code <groupId>:<artifactId>} in order to create plugin
    *        {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader}s
    * @param exportPluginClasses {@link Set} of {@link Class} to be exported in addition to the ones already exported by the
@@ -73,8 +74,8 @@ public class ClassPathClassifierContext {
                                     final List<URL> classPathURLs,
                                     final WorkspaceLocationResolver workspaceLocationResolver,
                                     final List<String> providedExclusions,
-                                    final List<String> applicationArtifactExclusionsCoordinates,
-                                    final List<String> extraBootPackagesList,
+                                    final List<String> providedInclusions,
+                                    final List<String> testExclusions,
                                     final List<String> pluginCoordinates,
                                     final Set<Class> exportPluginClasses)
       throws IOException {
@@ -88,6 +89,7 @@ public class ClassPathClassifierContext {
     this.classPathURLs = classPathURLs;
     this.workspaceLocationResolver = workspaceLocationResolver;
     this.providedExclusions = providedExclusions;
+    this.providedInclusions = providedInclusions;
 
     Properties excludedProperties = getExcludedProperties();
     String excludedArtifacts = excludedProperties.getProperty(EXCLUDED_ARTIFACTS);
@@ -96,8 +98,8 @@ public class ClassPathClassifierContext {
         this.excludedArtifacts.add(exclusion);
       }
     }
-    this.applicationArtifactExclusionsCoordinates = applicationArtifactExclusionsCoordinates;
-    this.extraBootPackages = getExtraBootPackages(extraBootPackagesList, excludedProperties);
+    this.testExclusions = testExclusions;
+    this.extraBootPackages = getExtraBootPackages(excludedProperties);
 
     this.exportPluginClasses = exportPluginClasses;
 
@@ -134,15 +136,23 @@ public class ClassPathClassifierContext {
 
   /**
    * @return Maven artifacts to be excluded from the {@code provided} scope direct dependencies of the rootArtifact. In format
-   *         {@code <groupId>:<artifactId>:<extension>:<version>}.
+   *         {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
   public List<String> getProvidedExclusions() {
     return this.providedExclusions;
   }
 
   /**
+   * @return Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In format
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   */
+  public List<String> getProvidedInclusions() {
+    return this.providedInclusions;
+  }
+
+  /**
    * @return Maven artifacts to be excluded from the Mule container artifact when resolving dependencies. In format
-   *         {@code <groupId>:<artifactId>:[extension]:<version>}.
+   *         {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
   public List<String> getExcludedArtifacts() {
     return this.excludedArtifacts;
@@ -155,11 +165,11 @@ public class ClassPathClassifierContext {
    * @return {@link Set} of Maven coordinates in the format:
    * 
    *         <pre>
-   * <groupId>:<artifactId>:<extension>:<version>
+   *         {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    *         </pre>
    */
-  public List<String> getApplicationArtifactExclusionsCoordinates() {
-    return applicationArtifactExclusionsCoordinates;
+  public List<String> getTestExclusions() {
+    return this.testExclusions;
   }
 
   /**
@@ -167,7 +177,7 @@ public class ClassPathClassifierContext {
    *         to the pre-defined ones.
    */
   public Set<String> getExtraBootPackages() {
-    return extraBootPackages;
+    return this.extraBootPackages;
   }
 
   /**
@@ -175,7 +185,7 @@ public class ClassPathClassifierContext {
    *         testing purposes only.
    */
   public Set<Class> getExportPluginClasses() {
-    return exportPluginClasses;
+    return this.exportPluginClasses;
   }
 
   /**
@@ -183,7 +193,7 @@ public class ClassPathClassifierContext {
    *         {@link org.mule.runtime.module.artifact.classloader.ArtifactClassLoader}
    */
   public List<String> getPluginCoordinates() {
-    return pluginCoordinates;
+    return this.pluginCoordinates;
   }
 
   /**
@@ -193,9 +203,8 @@ public class ClassPathClassifierContext {
    * @param excludedProperties {@link Properties }that has the list of extra boot packages definitions
    * @return a {@link Set} of {@link String}s with the extra boot packages to be appended
    */
-  private Set<String> getExtraBootPackages(final List<String> extraBootPackagesList, final Properties excludedProperties) {
+  private Set<String> getExtraBootPackages(final Properties excludedProperties) {
     Set<String> packages = Sets.newHashSet();
-    packages.addAll(extraBootPackagesList);
 
     String excludedExtraBootPackages = excludedProperties.getProperty(EXTRA_BOOT_PACKAGES);
     if (excludedExtraBootPackages != null) {
