@@ -10,7 +10,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.rules.ExpectedException.none;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
-import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.runtime.api.message.MuleMessage;
 import org.mule.runtime.core.api.MuleEvent;
 import org.mule.runtime.core.util.IOUtils;
@@ -27,8 +26,6 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
-@ArtifactClassLoaderRunnerConfig(
-    plugins = "org.mule.modules:mule-module-file")
 public abstract class FileConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   protected static final String HELLO_WORLD = "Hello World!";

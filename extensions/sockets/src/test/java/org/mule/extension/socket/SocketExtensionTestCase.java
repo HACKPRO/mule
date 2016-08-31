@@ -13,7 +13,6 @@ import static org.junit.Assert.fail;
 import static org.junit.rules.ExpectedException.none;
 import org.mule.extension.socket.api.SocketsExtension;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
-import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.runtime.api.message.MuleMessage;
 import org.mule.runtime.core.api.MuleEventContext;
 import org.mule.runtime.core.api.lifecycle.Callable;
@@ -38,7 +37,6 @@ import org.junit.rules.ExpectedException;
 /**
  * Base class with common behaviour for all the {@link SocketsExtension} test cases
  */
-@ArtifactClassLoaderRunnerConfig(plugins = "org.mule.modules:mule-module-sockets")
 public abstract class SocketExtensionTestCase extends MuleArtifactFunctionalTestCase {
 
   protected static final int TIMEOUT_MILLIS = 5000;

@@ -87,6 +87,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   public static final String JAR_EXTENSION = "jar";
   public static final String SNAPSHOT_WILCARD_FILE_FILTER = "*-SNAPSHOT*.*";
   private static final String GENERATED_TEST_RESOURCES = "generated-test-resources";
+  public static final String MULE_EXTENSION = "mule-extension";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   /**
@@ -218,6 +219,15 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure =
         new ExtensionsTestInfrastructureDiscoverer(createExtensionManager());
 
+    if (isExtensionPlugin(rootArtifact)) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("rootArtifact '{}' identified as Extension plugin", rootArtifact);
+      }
+      pluginUrlClassifications
+          .add(buildPluginUrlClassification(rootArtifact, context, localRepositoryService, baseResourcesFolder,
+                                            extensionsInfrastructure));
+    }
+
     if (context.getPluginCoordinates() != null) {
       for (String pluginCoords : context.getPluginCoordinates()) {
         if (logger.isDebugEnabled()) {
@@ -225,30 +235,59 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         }
 
         Artifact pluginArtifact = createPluginArtifact(pluginCoords, rootArtifact, directDependencies);
-        List<URL> urls = toUrl(localRepositoryService
-            .resolveDependencies(
-                                 new Dependency(pluginArtifact ,
-                                                COMPILE),
-                                 orFilter(classpathFilter(COMPILE),
-                                          new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()))));
-
-        URL generatedTestResources =
-            buildExtensionPluginMetadata(baseResourcesFolder, extensionsInfrastructure, pluginArtifact, urls);
-
-        if (generatedTestResources != null) {
-          List<URL> appendedTestResources = Lists.newArrayList(generatedTestResources);
-          appendedTestResources.addAll(urls);
-          urls = appendedTestResources;
+        if (rootArtifact.getGroupId().equals(pluginArtifact.getGroupId()) && rootArtifact.getArtifactId().equals(pluginArtifact.getArtifactId())) {
+          if (logger.isDebugEnabled()) {
+            logger.debug("rootArtifact '{}' already discovered and classified as Extension plugin, discarding pluginCoordinates: '{}'", rootArtifact, pluginArtifact);
+          }
         }
-        // TODO (gfernandes): How could I check if exported classes belong to this plugin?
-        pluginUrlClassifications
-            .add(new PluginUrlClassification(toId(pluginArtifact), urls, Lists.newArrayList(context.getExportPluginClasses())));
+        else {
+          pluginUrlClassifications
+              .add(buildPluginUrlClassification(pluginArtifact, context, localRepositoryService, baseResourcesFolder,
+                                                extensionsInfrastructure));
+        }
       }
-
-      File generatedResourcesDirectory = new File(baseResourcesFolder, separator + "META-INF");
-      extensionsInfrastructure.generateDslResources(generatedResourcesDirectory);
     }
+
+    File generatedResourcesDirectory = new File(baseResourcesFolder, separator + "META-INF");
+    extensionsInfrastructure.generateDslResources(generatedResourcesDirectory);
     return pluginUrlClassifications;
+  }
+
+  private boolean isExtensionPlugin(Artifact artifact) {
+    return artifact.getExtension().equals(MULE_EXTENSION);
+  }
+
+  /**
+   * Classifies a plugin {@link Artifact}. {@value org.eclipse.aether.util.artifact.JavaScopes#COMPILE} dependencies will be resolved
+   * for building the {@link URL}'s for the class loader.
+   * For {@link Extension} annotated classes it will also generate its metadata.
+   *
+   * @param pluginArtifact {@link Artifact} that represents the plugin to be classified
+   * @param context {@link ClassPathClassifierContext} with settings for the classification process
+   * @param localRepositoryService {@link LocalRepositoryService} to resolve Maven dependencies
+   * @param baseResourcesFolder base {@link File} folder for extensions metadata
+   * @param extensionsInfrastructure {@link ExtensionsTestInfrastructureDiscoverer} to generate metadata
+   * @return {@link PluginUrlClassification} for the plugin
+   */
+  private PluginUrlClassification buildPluginUrlClassification(Artifact pluginArtifact, ClassPathClassifierContext context, LocalRepositoryService localRepositoryService,
+                                            File baseResourcesFolder, ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure) {
+    List<URL> urls = toUrl(localRepositoryService
+        .resolveDependencies(
+            new Dependency(pluginArtifact,
+                           COMPILE),
+            orFilter(classpathFilter(COMPILE),
+                     new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()))));
+
+    URL generatedTestResources =
+        buildExtensionPluginMetadata(baseResourcesFolder, extensionsInfrastructure, pluginArtifact, urls);
+
+    if (generatedTestResources != null) {
+      List<URL> appendedTestResources = Lists.newArrayList(generatedTestResources);
+      appendedTestResources.addAll(urls);
+      urls = appendedTestResources;
+    }
+    // TODO (gfernandes): How could I check if exported classes belong to this plugin?
+    return new PluginUrlClassification(toId(pluginArtifact), urls, Lists.newArrayList(context.getExportPluginClasses()));
   }
 
   /**

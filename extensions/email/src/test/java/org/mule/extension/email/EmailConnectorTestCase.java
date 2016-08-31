@@ -16,7 +16,6 @@ import static org.mule.extension.email.util.EmailTestUtils.EMAIL_SUBJECT;
 import static org.mule.extension.email.util.EmailTestUtils.JUANI_EMAIL;
 import static org.mule.extension.email.util.EmailTestUtils.setUpServer;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
-import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.tck.junit4.rule.DynamicPort;
 
 import com.icegreen.greenmail.user.GreenMailUser;
@@ -26,8 +25,6 @@ import com.icegreen.greenmail.util.ServerSetup;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-@ArtifactClassLoaderRunnerConfig(
-    plugins = "org.mule.modules:mule-module-email")
 public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

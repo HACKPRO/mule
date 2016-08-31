@@ -26,8 +26,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunnerDelegateTo(Parameterized.class)
-@ArtifactClassLoaderRunnerConfig(exportPluginClasses = {SftpClientFactory.class, SftpClient.class},
-    plugins = "org.mule.modules:mule-module-ftp")
+@ArtifactClassLoaderRunnerConfig(exportPluginClasses = {SftpClientFactory.class, SftpClient.class})
 public abstract class FtpConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   private final String name;
