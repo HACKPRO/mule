@@ -27,7 +27,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 @ArtifactClassLoaderRunnerConfig(
-    pluginCoordinates = "org.mule.modules:mule-module-email")
+    plugins = "org.mule.modules:mule-module-email")
 public abstract class EmailConnectorTestCase extends MuleArtifactFunctionalTestCase {
 
   @Rule

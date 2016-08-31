@@ -149,7 +149,9 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * {@link URL}s that have a {@value #POM_XML_FILE} in its {@code url.toFile.getParent.getParent}, because reference between
    * modules in IDE should be like the following:
    * <pre>
-   *
+   *    /Users/jdoe/Development/mule/extensions/file/target/test-classes
+   *    /Users/jdoe/Development/mule/extensions/file/target/classes
+   *    /Users/jdoe/Development/mule/core/target/classes
    * </pre>
    * @param classPath
    */

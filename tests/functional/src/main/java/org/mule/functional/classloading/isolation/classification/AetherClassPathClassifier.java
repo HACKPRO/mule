@@ -7,6 +7,7 @@
 
 package org.mule.functional.classloading.isolation.classification;
 
+import static java.io.File.separator;
 import static java.util.stream.Collectors.toList;
 import static org.eclipse.aether.util.artifact.ArtifactIdUtils.toId;
 import static org.eclipse.aether.util.artifact.JavaScopes.COMPILE;
@@ -21,6 +22,16 @@ import org.mule.functional.api.classloading.isolation.PluginUrlClassification;
 import org.mule.functional.classloading.isolation.classification.aether.LocalRepositoryService;
 import org.mule.functional.classloading.isolation.classification.aether.PatternInclusionsDependencyFilter;
 import org.mule.functional.classloading.isolation.maven.MavenModelFactory;
+import org.mule.functional.junit4.infrastructure.ExtensionsTestInfrastructureDiscoverer;
+import org.mule.runtime.core.DefaultMuleContext;
+import org.mule.runtime.core.api.lifecycle.InitialisationException;
+import org.mule.runtime.core.api.registry.MuleRegistry;
+import org.mule.runtime.core.registry.DefaultRegistryBroker;
+import org.mule.runtime.core.registry.MuleRegistryHelper;
+import org.mule.runtime.extension.api.annotation.Extension;
+import org.mule.runtime.module.extension.internal.introspection.version.StaticVersionResolver;
+import org.mule.runtime.module.extension.internal.manager.DefaultExtensionManager;
+import org.mule.runtime.module.extension.internal.manager.ExtensionManagerAdapter;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -29,11 +40,13 @@ import java.io.File;
 import java.io.FileFilter;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.Collection;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.maven.model.Model;
@@ -44,6 +57,10 @@ import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 
 /**
  * Creates the {@link ArtifactUrlClassification} based on the Maven dependencies declared by the rootArtifact using Eclipse
@@ -64,13 +81,12 @@ import org.slf4j.LoggerFactory;
 public class AetherClassPathClassifier implements ClassPathClassifier {
 
   public static final String ALL_TESTS_JAR_ARTIFACT_COORDS = "*:*:jar:tests:*";
-
   public static final String POM = "pom";
   public static final String POM_XML = POM + ".xml";
   public static final String MAVEN_COORDINATES_SEPARATOR = ":";
   public static final String JAR_EXTENSION = "jar";
   public static final String SNAPSHOT_WILCARD_FILE_FILTER = "*-SNAPSHOT*.*";
-
+  private static final String GENERATED_TEST_RESOURCES = "generated-test-resources";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   /**
@@ -197,54 +213,159 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                       List<Dependency> directDependencies,
                                                                       LocalRepositoryService localRepositoryService) {
     List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
+    File baseResourcesFolder = getGeneratedResourcesBase(context.getRootArtifactTestClassesFolder());
+
+    ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure =
+        new ExtensionsTestInfrastructureDiscoverer(createExtensionManager());
+
     if (context.getPluginCoordinates() != null) {
       for (String pluginCoords : context.getPluginCoordinates()) {
         if (logger.isDebugEnabled()) {
           logger.debug("Building plugin classification for coordinates: '{}'", pluginCoords);
         }
 
-        final String[] pluginSplitCoords = pluginCoords.split(MAVEN_COORDINATES_SEPARATOR);
-        String pluginGroupId = pluginSplitCoords[0];
-        String pluginArtifactId = pluginSplitCoords[1];
-        String pluginVersion;
-
-        if (rootArtifact.getGroupId().equals(pluginGroupId) && rootArtifact.getArtifactId().equals(pluginArtifactId)) {
-          if (logger.isDebugEnabled()) {
-            logger.debug("'{}' declared as plugin, resolving version from pom file", rootArtifact);
-          }
-          pluginVersion = rootArtifact.getVersion();
-        } else {
-          if (logger.isDebugEnabled()) {
-            logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
-          }
-          Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
-              : directDependencies.stream().filter(dependency -> dependency.getArtifact().getGroupId().equals(pluginGroupId)
-                  && dependency.getArtifact().getArtifactId().equals(pluginArtifactId)).findFirst();
-          if (!pluginDependencyOp.isPresent() || !pluginDependencyOp.get().getScope().endsWith(PROVIDED)) {
-            throw new IllegalStateException("Plugin '" + pluginCoords
-                + "' in order to be resolved has to be declared as provided direct dependency of your Maven project");
-          }
-          Dependency pluginDependency = pluginDependencyOp.get();
-          pluginVersion = pluginDependency.getArtifact().getVersion();
-        }
-
-        final DefaultArtifact artifact = new DefaultArtifact(pluginGroupId, pluginArtifactId, JAR_EXTENSION, pluginVersion);
-        if (logger.isDebugEnabled()) {
-          logger.debug("'{}' plugin coordinates resolved to: '{}'", pluginCoords, artifact);
-        }
+        Artifact pluginArtifact = createPluginArtifact(pluginCoords, rootArtifact, directDependencies);
         List<URL> urls = toUrl(localRepositoryService
             .resolveDependencies(
-                                 new Dependency(artifact,
+                                 new Dependency(pluginArtifact ,
                                                 COMPILE),
                                  orFilter(classpathFilter(COMPILE),
                                           new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()))));
 
+        URL generatedTestResources =
+            buildExtensionPluginMetadata(baseResourcesFolder, extensionsInfrastructure, pluginArtifact, urls);
+
+        if (generatedTestResources != null) {
+          List<URL> appendedTestResources = Lists.newArrayList(generatedTestResources);
+          appendedTestResources.addAll(urls);
+          urls = appendedTestResources;
+        }
         // TODO (gfernandes): How could I check if exported classes belong to this plugin?
         pluginUrlClassifications
-            .add(new PluginUrlClassification(toId(artifact), urls, Lists.newArrayList(context.getExportPluginClasses())));
+            .add(new PluginUrlClassification(toId(pluginArtifact), urls, Lists.newArrayList(context.getExportPluginClasses())));
       }
+
+      File generatedResourcesDirectory = new File(baseResourcesFolder, separator + "META-INF");
+      extensionsInfrastructure.generateDslResources(generatedResourcesDirectory);
     }
     return pluginUrlClassifications;
+  }
+
+  /**
+   * @return an {@link ExtensionManagerAdapter} that would be used to register the extensions, later it would be discarded.
+   */
+  private ExtensionManagerAdapter createExtensionManager() {
+    DefaultExtensionManager extensionManager = new DefaultExtensionManager();
+    extensionManager.setMuleContext(new DefaultMuleContext() {
+
+      @Override
+      public MuleRegistry getRegistry() {
+        return new MuleRegistryHelper(new DefaultRegistryBroker(this), this);
+      }
+    });
+    try {
+      extensionManager.initialise();
+    } catch (InitialisationException e) {
+      throw new RuntimeException("Error while initialising the extension manager", e);
+    }
+    return extensionManager;
+  }
+
+  /**
+   * Generates the extension metadata if the plugin has a class annotated with the {@link Extension} annotation.
+   *
+   * @param baseResourcesFolder {@link File} base folder to write metadata's file
+   * @param extensionsInfrastructure {@link ExtensionsTestInfrastructureDiscoverer} to generate metadata
+   * @param pluginArtifact {@link Artifact} representing the plugin
+   * @param urls plugin {@link URL}'s resolved
+   * @return {@link URL} to the folder where the metadata was created or null if the plugin is not an extension
+   */
+  private URL buildExtensionPluginMetadata(File baseResourcesFolder,
+                                           ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure,
+                                           Artifact pluginArtifact, List<URL> urls) {
+    logger.debug("Checking if plugin '{}' is an Extension", pluginArtifact);
+    ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
+    scanner.addIncludeFilter(new AnnotationTypeFilter(Extension.class));
+    scanner.setResourceLoader(new PathMatchingResourcePatternResolver(new URLClassLoader(urls.toArray(new URL[0]), null)));
+    Set<BeanDefinition> extensionsAnnotatedClasses = scanner.findCandidateComponents("");
+    if (extensionsAnnotatedClasses.size() > 1) {
+      throw new IllegalStateException(
+                                      "While scanning class loader on plugin '" + pluginArtifact
+                                          + "' for discovering @Extension classes annotated, more than one found. Only one should be discovered, found: "
+                                          + extensionsAnnotatedClasses);
+    } else if (extensionsAnnotatedClasses.size() == 1) {
+      String extensionClassName = extensionsAnnotatedClasses.iterator().next().getBeanClassName();
+      logger.debug("Generating Extension metadata for extension class: '{}'", extensionClassName);
+
+      File generatedResourcesDirectory =
+          new File(baseResourcesFolder, pluginArtifact.getArtifactId() + separator + "META-INF");
+      generatedResourcesDirectory.mkdirs();
+
+      Class extensionClass;
+      try {
+        extensionClass = Class.forName(extensionClassName);
+      } catch (ClassNotFoundException e) {
+        throw new IllegalArgumentException("Cannot load Extension class '" + extensionClassName + "'", e);
+      }
+
+      extensionsInfrastructure.generateLoaderResources(
+                                                       extensionsInfrastructure
+                                                           .discoverExtension(
+                                                               extensionClass,
+                                                               new StaticVersionResolver(
+                                                                   pluginArtifact.getVersion())),
+                                                       generatedResourcesDirectory);
+
+      return toUrl(generatedResourcesDirectory);
+    } else {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Plugin '{}' not an Extension", pluginArtifact);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Creates the plugin {@link Artifact}, if no version is {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} it will
+   * be obtained from the direct dependencies for the rootArtifact or if the same rootArtifact is the plugin declared it will take
+   * its version.
+   *
+   * @param pluginCoords Maven coordinates that define the plugin
+   * @param rootArtifact {@link Artifact} that defines the current artifact that requested to build this class loaders
+   * @param directDependencies {@link List} of {@link Dependency} with direct dependencies for the rootArtifact
+   * @return {@link Artifact} representing the plugin
+   */
+  private Artifact createPluginArtifact(String pluginCoords, Artifact rootArtifact, List<Dependency> directDependencies) {
+    final String[] pluginSplitCoords = pluginCoords.split(MAVEN_COORDINATES_SEPARATOR);
+    String pluginGroupId = pluginSplitCoords[0];
+    String pluginArtifactId = pluginSplitCoords[1];
+    String pluginVersion;
+
+    if (rootArtifact.getGroupId().equals(pluginGroupId) && rootArtifact.getArtifactId().equals(pluginArtifactId)) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("'{}' declared as plugin, resolving version from pom file", rootArtifact);
+      }
+      pluginVersion = rootArtifact.getVersion();
+    } else {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Resolving version for '{}' from direct dependencies", pluginCoords);
+      }
+      Optional<Dependency> pluginDependencyOp = directDependencies.isEmpty() ? Optional.<Dependency>empty()
+          : directDependencies.stream().filter(dependency -> dependency.getArtifact().getGroupId().equals(pluginGroupId)
+              && dependency.getArtifact().getArtifactId().equals(pluginArtifactId)).findFirst();
+      if (!pluginDependencyOp.isPresent() || !pluginDependencyOp.get().getScope().endsWith(PROVIDED)) {
+        throw new IllegalStateException("Plugin '" + pluginCoords
+            + "' in order to be resolved has to be declared as provided direct dependency of your Maven project");
+      }
+      Dependency pluginDependency = pluginDependencyOp.get();
+      pluginVersion = pluginDependency.getArtifact().getVersion();
+    }
+
+    final DefaultArtifact artifact = new DefaultArtifact(pluginGroupId, pluginArtifactId, JAR_EXTENSION, pluginVersion);
+    if (logger.isDebugEnabled()) {
+      logger.debug("'{}' plugin coordinates resolved to: '{}'", pluginCoords, artifact);
+    }
+    return artifact;
   }
 
   /**
@@ -349,20 +470,41 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * Converts the {@link List} of {@link File}s to {@link URL}s
    *
    * @param files {@link File} to get {@link URL}s
-   * @return {@link List} of {@link URL}s
+   * @return {@link List} of {@link URL}s for the files
    */
   private List<URL> toUrl(Collection<File> files) {
     List<URL> urls = Lists.newArrayList();
     for (File file : files) {
-      try {
-        urls.add(file.toURI().toURL());
-      } catch (MalformedURLException e) {
-        throw new IllegalArgumentException("Couldn't get URL", e);
-      }
+        urls.add(toUrl(file));
     }
     return urls;
   }
 
+  /**
+   * Converts the {@link File} to {@link URL}
+   *
+   * @param file {@link File} to get its {@link URL}
+   * @return {@link URL} for the file
+   */
+  private URL toUrl(File file) {
+    try {
+      return file.toURI().toURL();
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException("Couldn't get URL", e);
+    }
+  }
+
+  /**
+   * Creates the {@value #GENERATED_TEST_RESOURCES} inside the target folder to put metadata files for extensions. If no exists, it
+   * will create it.
+   *
+   * @return {@link File} baseResourcesFolder to write extensions metadata.
+   */
+  private File getGeneratedResourcesBase(File folder) {
+    File baseResourcesFolder = new File(folder, GENERATED_TEST_RESOURCES);
+    baseResourcesFolder.mkdir();
+    return baseResourcesFolder;
+  }
 
   /**
    * As Eclipse Aether resolves SNAPSHOT versions without pointing to a timestamped version (actually they are normalized, in
