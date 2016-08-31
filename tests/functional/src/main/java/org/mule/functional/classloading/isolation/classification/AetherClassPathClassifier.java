@@ -235,12 +235,14 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         }
 
         Artifact pluginArtifact = createPluginArtifact(pluginCoords, rootArtifact, directDependencies);
-        if (rootArtifact.getGroupId().equals(pluginArtifact.getGroupId()) && rootArtifact.getArtifactId().equals(pluginArtifact.getArtifactId())) {
+        if (rootArtifact.getGroupId().equals(pluginArtifact.getGroupId())
+            && rootArtifact.getArtifactId().equals(pluginArtifact.getArtifactId())) {
           if (logger.isDebugEnabled()) {
-            logger.debug("rootArtifact '{}' already discovered and classified as Extension plugin, discarding pluginCoordinates: '{}'", rootArtifact, pluginArtifact);
+            logger.debug(
+                         "rootArtifact '{}' already discovered and classified as Extension plugin, discarding pluginCoordinates: '{}'",
+                         rootArtifact, pluginArtifact);
           }
-        }
-        else {
+        } else {
           pluginUrlClassifications
               .add(buildPluginUrlClassification(pluginArtifact, context, localRepositoryService, baseResourcesFolder,
                                                 extensionsInfrastructure));
@@ -269,14 +271,16 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * @param extensionsInfrastructure {@link ExtensionsTestInfrastructureDiscoverer} to generate metadata
    * @return {@link PluginUrlClassification} for the plugin
    */
-  private PluginUrlClassification buildPluginUrlClassification(Artifact pluginArtifact, ClassPathClassifierContext context, LocalRepositoryService localRepositoryService,
-                                            File baseResourcesFolder, ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure) {
+  private PluginUrlClassification buildPluginUrlClassification(Artifact pluginArtifact, ClassPathClassifierContext context,
+                                                               LocalRepositoryService localRepositoryService,
+                                                               File baseResourcesFolder,
+                                                               ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure) {
     List<URL> urls = toUrl(localRepositoryService
         .resolveDependencies(
-            new Dependency(pluginArtifact,
-                           COMPILE),
-            orFilter(classpathFilter(COMPILE),
-                     new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()))));
+                             new Dependency(pluginArtifact,
+                                            COMPILE),
+                             orFilter(classpathFilter(COMPILE),
+                                      new PatternExclusionsDependencyFilter(context.getExcludedArtifacts()))));
 
     URL generatedTestResources =
         buildExtensionPluginMetadata(baseResourcesFolder, extensionsInfrastructure, pluginArtifact, urls);
@@ -350,9 +354,10 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       extensionsInfrastructure.generateLoaderResources(
                                                        extensionsInfrastructure
                                                            .discoverExtension(
-                                                               extensionClass,
-                                                               new StaticVersionResolver(
-                                                                   pluginArtifact.getVersion())),
+                                                                              extensionClass,
+                                                                              new StaticVersionResolver(
+                                                                                                        pluginArtifact
+                                                                                                            .getVersion())),
                                                        generatedResourcesDirectory);
 
       return toUrl(generatedResourcesDirectory);
@@ -514,7 +519,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   private List<URL> toUrl(Collection<File> files) {
     List<URL> urls = Lists.newArrayList();
     for (File file : files) {
-        urls.add(toUrl(file));
+      urls.add(toUrl(file));
     }
     return urls;
   }
