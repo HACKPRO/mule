@@ -18,7 +18,6 @@ import java.util.List;
  */
 public class ArtifactUrlClassification {
 
-  private final List<URL> bootLauncherUrls;
   private final List<URL> containerUrls;
   private final List<PluginUrlClassification> pluginClassificationsUrls;
   private final List<URL> applicationUrls;
@@ -26,7 +25,6 @@ public class ArtifactUrlClassification {
   /**
    * Creates a instance with the list of {@link URL}s classified in container, plugins and application.
    *
-   * @param bootLauncherUrls list of {@link URL} that define Java and Bootstrap {@link URL}s
    * @param containerUrls list of {@link URL} that define the artifacts that would be loaded with the container
    *        {@link ClassLoader}
    * @param pluginClassificationsUrls for each plugin discovered a list of {@link URL} that define the artifacts that would be
@@ -34,17 +32,12 @@ public class ArtifactUrlClassification {
    * @param applicationUrls list of {@link URL} that define the artifacts that would be loaded with the application
    *        {@link ClassLoader}
    */
-  public ArtifactUrlClassification(List<URL> bootLauncherUrls, List<URL> containerUrls,
+  public ArtifactUrlClassification(List<URL> containerUrls,
                                    List<PluginUrlClassification> pluginClassificationsUrls,
                                    List<URL> applicationUrls) {
-    this.bootLauncherUrls = bootLauncherUrls;
     this.containerUrls = containerUrls;
     this.pluginClassificationsUrls = pluginClassificationsUrls;
     this.applicationUrls = applicationUrls;
-  }
-
-  public List<URL> getBootLauncherUrls() {
-    return this.bootLauncherUrls;
   }
 
   public List<URL> getContainerUrls() {

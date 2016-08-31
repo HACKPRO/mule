@@ -9,9 +9,11 @@ package org.mule.functional.classloading.isolation.classification.aether;
 
 import static java.lang.Boolean.valueOf;
 import static java.lang.System.getProperty;
+import static java.util.stream.Collectors.toList;
 import static org.apache.maven.repository.internal.MavenRepositorySystemUtils.newSession;
 import static org.eclipse.aether.repository.RepositoryPolicy.CHECKSUM_POLICY_IGNORE;
 import static org.eclipse.aether.repository.RepositoryPolicy.UPDATE_POLICY_NEVER;
+import static org.eclipse.aether.util.artifact.ArtifactIdUtils.toId;
 import static org.mule.runtime.core.api.config.MuleProperties.MULE_LOG_VERBOSE_CLASSLOADING;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
@@ -21,7 +23,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.DefaultRepositorySystemSession;
@@ -47,6 +48,8 @@ import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
+import org.eclipse.aether.util.filter.PatternInclusionsDependencyFilter;
+import org.eclipse.aether.util.graph.visitor.PathRecordingDependencyVisitor;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +141,8 @@ public class LocalRepositoryService {
       return descriptor;
     } catch (ArtifactDescriptorException e) {
       throw new IllegalStateException("Couldn't read descriptor for artifact: '" + artifact
-          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository", e);
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven respository",
+                                      e);
     }
   }
 
@@ -158,7 +162,8 @@ public class LocalRepositoryService {
       return result;
     } catch (ArtifactResolutionException e) {
       throw new IllegalStateException("Couldn't resolve artifact: '" + artifact
-          + "', it has to be able to be resolved through the workspace or installed in your local Maven repository", e);
+          + "', it has to be able to be resolved through the workspace or installed in your local Maven repository",
+                                      e);
     }
   }
 
@@ -176,9 +181,9 @@ public class LocalRepositoryService {
   /**
    * Resolves transitive dependencies for the dependency as root node using the filter.
    *
-   * @param root {@link Dependency} node from to collect its dependencies
+   * @param root             {@link Dependency} node from to collect its dependencies
    * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
-   *        May be {@code null} to no filter
+   *                         May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
@@ -195,10 +200,10 @@ public class LocalRepositoryService {
    * If the resolution of dependencies fail it will continue with the resolved ones and log a warning message to allow
    * troubleshooting.
    *
-   * @param root {@link Dependency} node from to collect its dependencies
+   * @param root               {@link Dependency} node from to collect its dependencies
    * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
-   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
-   *        May be {@code null} to no filter
+   * @param dependencyFilter   {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
+   *                           May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
@@ -224,12 +229,15 @@ public class LocalRepositoryService {
     } catch (DependencyResolutionException e) {
       logger.warn(
                   "Dependencies couldn't be resolved for request '{}', {}. " +
-                      "It will continue assuming that class path should be correctly fulfilled by Maven or IDE. " +
-                      "Check this list of not resolved dependencies because it may the case of a third-party dependency " +
+                      "It will continue due to class path is correctly fulfilled by Maven or IDE. " +
+                      "Check this list of artifacts not resolved because it may be the case of a third-party dependency " +
                       "that is overridden at your artifact Maven dependencies pom (by Maven nearest resolution algorithm). " +
-                      "This means that on these artifact it may not be possible to support multiple versions at different class loader levels.",
+                      "Meaning that on these artifact it may not be possible to support multiple versions at different class " +
+                      "loader levels due to the one from class path will be used.",
                   collectRequest, e.getMessage());
       node = e.getResult().getRoot();
+
+      logUnresolvedArtifacts(node, e);
     }
 
     List<File> files = getFiles(node);
@@ -246,7 +254,39 @@ public class LocalRepositoryService {
     PreorderNodeListGenerator nlg = new PreorderNodeListGenerator();
     node.accept(nlg);
 
-    return nlg.getFiles().stream().map(File::getAbsoluteFile).collect(Collectors.toList());
+    return nlg.getFiles().stream().map(File::getAbsoluteFile).collect(toList());
+  }
+
+  /**
+   * Logs the paths for each dependency not found
+   *
+   * @param node root {@link DependencyNode}, can be a "null" root (imaginary root)
+   * @param e {@link DependencyResolutionException} the error to collect paths.
+   */
+  private void logUnresolvedArtifacts(DependencyNode node, DependencyResolutionException e) {
+    List<ArtifactResult> artifactResults =
+        e.getResult().getArtifactResults().stream().filter(artifactResult -> !artifactResult.getExceptions().isEmpty()).collect(
+                                                                                                                                toList());
+    PathRecordingDependencyVisitor visitor =
+        new PathRecordingDependencyVisitor(new PatternInclusionsDependencyFilter(artifactResults.stream()
+            .map(artifactResult -> toId(
+                                        artifactResult.getRequest()
+                                            .getArtifact()))
+            .collect(toList())),
+                                           node.getArtifact() != null);
+    node.accept(visitor);
+
+    visitor.getPaths().stream()
+        .forEach(path -> {
+          List<DependencyNode> unresolvedArtifactPath = path.stream().filter(
+                                                                             dependencyNode -> dependencyNode
+                                                                                 .getArtifact() != null)
+              .collect(toList());
+          if (!unresolvedArtifactPath.isEmpty()) {
+            logger.warn("Dependency path to not resolved artifacts -> {}",
+                        unresolvedArtifactPath.toString());
+          }
+        });
   }
 
   /**

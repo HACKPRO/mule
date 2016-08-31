@@ -203,7 +203,6 @@ public class IsolatedClassLoaderFactory {
     method.setAccessible(true);
 
     List<URL> launcherUrls = Lists.newArrayList();
-    launcherUrls.addAll(artifactUrlClassification.getBootLauncherUrls());
     launcherUrls.addAll(artifactUrlClassification.getContainerUrls());
 
     for (URL url : launcherUrls) {

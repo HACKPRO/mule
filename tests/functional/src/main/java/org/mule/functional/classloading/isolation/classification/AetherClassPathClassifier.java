@@ -100,9 +100,8 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         buildContainerUrlClassification(context, directDependencies, localRepositoryService, pluginUrlClassifications);
     List<URL> applicationUrls = buildApplicationUrlClassification(context, rootArtifact, directDependencies,
                                                                   localRepositoryService, pluginUrlClassifications);
-    List<URL> bootLauncherUrls = getBootLauncherURLs(context);
 
-    return new ArtifactUrlClassification(bootLauncherUrls, containerUrls, pluginUrlClassifications,
+    return new ArtifactUrlClassification(containerUrls, pluginUrlClassifications,
                                          applicationUrls);
   }
 
@@ -345,28 +344,6 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                     new PatternExclusionsDependencyFilter(exclusionsPatterns))));
 
     return toUrl(applicationFiles);
-  }
-
-  /**
-   * Filters the {@link URL}s for launcher/App class loader with Java (IDE, surefire) stuff only.
-   *
-   * @param context {@link ClassPathClassifierContext} with settings for the classification process
-   * @return {@link URL}s with Java (IDE, surefire) stuff only.
-   */
-  private List<URL> getBootLauncherURLs(ClassPathClassifierContext context) {
-    Optional<URL> firstArtifactURL = context.getClassPathURLs().stream()
-        .filter(
-                url -> context.getRootArtifactTestClassesFolder().getAbsolutePath()
-                    .equals(new File(url.getFile()).getAbsolutePath()))
-        .findFirst();
-    if (!firstArtifactURL.isPresent()) {
-      throw new IllegalStateException("Couldn't get Boot/Launcher URLs from classpath");
-    }
-
-    if (logger.isDebugEnabled()) {
-      logger.debug("First URL for artifact found in classpath: " + firstArtifactURL.get());
-    }
-    return context.getClassPathURLs().subList(0, context.getClassPathURLs().indexOf(firstArtifactURL.get()));
   }
 
   /**

@@ -155,7 +155,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   private void discoverMavenProjectsFromClassPath(List<URL> classPath) {
     List<Path> classPaths = classPath.stream().map(url -> Paths.get(url.getFile())).collect(toList());
     List<File> mavenProjects = classPaths.stream().filter(
-        path -> containsMavenProject(path.getParent().getParent().toFile()))
+                                                          path -> containsMavenProject(path.getParent().getParent().toFile()))
         .map(path -> path.getParent().getParent().toFile())
         .collect(toList());
     if (logger.isDebugEnabled()) {
