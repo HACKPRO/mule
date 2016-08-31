@@ -40,12 +40,14 @@ import org.slf4j.LoggerFactory;
  * Discovers Maven projects from the rootArtifactClassesFolder folder and Maven variable
  * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} (if present) to define the root project directory.
  * <p/>
- * Matches each Maven project found with the class path in order to check if it is part of the build session or IDE JUnit class
- * path.
+ * Matches each Maven project found with the class path in order to check if it is part of the build session. When
+ * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} is not present, meaning that this not running under a Maven build session, the
+ * Workspace references would be resolved by filtering the class path {@link URL}s that are Maven project references, not packaged
+ * jars. path.
  * <p/>
- * In order to discover Maven projects and have references resolved through its compiled classes when running from Maven with
- * surefire Maven plugin, if it has been configure with {@code forkMode=always} the following Maven system property has to be
- * propagated on surefire configuration:
+ * In order to discover Maven projects and have references resolved through Workspace to its compiled classes when running from
+ * Maven with surefire Maven plugin, if the plugin has been configured with {@code forkMode=always} the following Maven system
+ * property has to be propagated on surefire configuration:
  * 
  * <pre>
  *  <systemPropertyVariables>
@@ -85,10 +87,11 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     if (rootProjectDirectoryProperty != null) {
       if (logger.isDebugEnabled()) {
         logger.debug(
-            "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
-            MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
+                     "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
+                     MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
       }
-      discoverMavenReactorProjects(rootProjectDirectoryProperty, classPath, rootArtifactClassesFolder);
+      discoverMavenReactorProjects(rootProjectDirectoryProperty, classPath,
+                                   rootArtifactClassesFolder.getParentFile().getParentFile());
     } else {
       if (logger.isDebugEnabled()) {
         logger.debug("Filtering class path entries to find out Maven projects");
@@ -98,8 +101,8 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   }
 
   /**
-   * Traverses the directory tree from the {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} property to look for Maven projects
-   * that are also listed as entries in class path.
+   * Traverses the directory tree from the {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} property to look for Maven projects that
+   * are also listed as entries in class path.
    *
    * @param rootProjectDirectoryProperty the root directory of the multi-module project build session
    * @param classPath the whole class path built by IDE or Maven (surefire Maven plugin)
@@ -139,16 +142,20 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
 
   /**
    * Discovers Maven projects by searching in class path provided by IDE or Maven (surefire Maven plugin) by looking at those
-   * {@link URL}s that have a {@value #POM_XML_FILE} in its {@code url.toFile.getParent.getParent}, because reference between modules in IDE should be like the following:
+   * {@link URL}s that have a {@value #POM_XML_FILE} in its {@code url.toFile.getParent.getParent}, because reference between
+   * modules in IDE should be like the following:
+   * 
    * <pre>
    *
    * </pre>
+   * 
    * @param classPath
    */
   private void discoverMavenProjectsFromClassPath(List<URL> classPath) {
     List<Path> classPaths = classPath.stream().map(url -> Paths.get(url.getFile())).collect(toList());
     List<Path> mavenProjects = classPaths.stream().filter(
-        path -> containsMavenProject(path.getParent().getParent().toFile())).collect(toList());
+                                                          path -> containsMavenProject(path.getParent().getParent().toFile()))
+        .collect(toList());
     if (logger.isDebugEnabled()) {
       logger.debug("Filtered from class path Maven projects: {}", mavenProjects);
     }

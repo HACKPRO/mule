@@ -184,7 +184,8 @@ public class ArtifactIsolatedClassLoaderBuilder {
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder has to be set");
     checkNotNull(classPathUrlProvider, "classPathUrlProvider has to be set");
     if (workspaceLocationResolver == null) {
-      workspaceLocationResolver = new AutoDiscoverWorkspaceLocationResolver(classPathUrlProvider.getURLs(), rootArtifactClassesFolder);
+      workspaceLocationResolver =
+          new AutoDiscoverWorkspaceLocationResolver(classPathUrlProvider.getURLs(), rootArtifactClassesFolder);
     }
 
     ClassPathClassifierContext context;
