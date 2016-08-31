@@ -12,6 +12,7 @@ import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
 import static java.util.stream.Collectors.toList;
+import static org.apache.commons.lang.StringUtils.isNotBlank;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 import org.mule.runtime.core.util.StringMessageUtils;
@@ -84,7 +85,7 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     }
 
     String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
-    if (rootProjectDirectoryProperty != null) {
+    if (isNotBlank(rootProjectDirectoryProperty)) {
       if (logger.isDebugEnabled()) {
         logger.debug(
                      "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
@@ -98,6 +99,14 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
       }
       discoverMavenProjectsFromClassPath(classPath);
     }
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Workspace location discover process completed");
+    }
+    List<String> messages = Lists.newArrayList("Workspace:");
+    messages.add(" ");
+    messages.addAll(filePathByArtifactId.keySet());
+    logger.debug(StringMessageUtils.getBoilerPlate(Lists.newArrayList(messages), '*', DEFAULT_MESSAGE_WIDTH));
   }
 
   /**
@@ -130,14 +139,6 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
     } catch (IOException e) {
       throw new RuntimeException("Error while discovering Maven projects from path: " + currentDir.toPath());
     }
-
-    if (logger.isDebugEnabled()) {
-      logger.debug("Workspace location discover process completed");
-    }
-    List<String> messages = Lists.newArrayList("Workspace:");
-    messages.add(" ");
-    messages.addAll(filePathByArtifactId.keySet());
-    logger.debug(StringMessageUtils.getBoilerPlate(Lists.newArrayList(messages), '*', DEFAULT_MESSAGE_WIDTH));
   }
 
   /**
@@ -153,13 +154,14 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    */
   private void discoverMavenProjectsFromClassPath(List<URL> classPath) {
     List<Path> classPaths = classPath.stream().map(url -> Paths.get(url.getFile())).collect(toList());
-    List<Path> mavenProjects = classPaths.stream().filter(
-                                                          path -> containsMavenProject(path.getParent().getParent().toFile()))
+    List<File> mavenProjects = classPaths.stream().filter(
+        path -> containsMavenProject(path.getParent().getParent().toFile()))
+        .map(path -> path.getParent().getParent().toFile())
         .collect(toList());
     if (logger.isDebugEnabled()) {
       logger.debug("Filtered from class path Maven projects: {}", mavenProjects);
     }
-    mavenProjects.stream().forEach(path -> resolvedArtifact(readMavenPomFile(getPomFile(path.toFile())).getArtifactId(), path));
+    mavenProjects.stream().forEach(file -> resolvedArtifact(readMavenPomFile(getPomFile(file)).getArtifactId(), file.toPath()));
   }
 
 
