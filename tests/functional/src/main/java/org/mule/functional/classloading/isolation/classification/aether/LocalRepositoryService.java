@@ -57,11 +57,14 @@ import org.slf4j.LoggerFactory;
 /**
  * Provides Maven artifacts resolutions base on {@link RepositorySystem} from Eclipse Aether.
  * <p/>
- * Dependencies are resolved using the {@link org.eclipse.aether.repository.WorkspaceReader} or Maven local repository. It works
- * in {@code offline} so any missing {@link Artifact} while resolving the dependency graph will throw an error.
+ * Dependencies are resolved using the Maven local repository. It works
+ * in {@code offline} so any missing {@link Artifact} while resolving the dependency graph will be logged and informed the path to these unresolved artifacts.
  * <p/>
  * It is assumed that before this is used either Maven triggered the build (and resolved any dependency missing) or JUnit through
  * the IDE (which in that case references to Maven artifacts were already resolved).
+ * <p/>
+ * It supports {@link org.eclipse.aether.repository.WorkspaceReader} to resolve from the Workspace artifacts that were not yet
+ * packaged (multi-module projects in Maven or project references in IDE) if a {@link WorkspaceLocationResolver} is provided.
  *
  * @since 4.0
  */
@@ -79,7 +82,8 @@ public class LocalRepositoryService {
   /**
    * Creates an instance of the {@link LocalRepositoryService} to collect Maven dependencies.
    *
-   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace.
+   * @param classPath {@link URL}'s from class path
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace. Not {@code null}.
    */
   public LocalRepositoryService(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
     session = newSession();

@@ -57,7 +57,7 @@ public class ClassPathClassifierContext {
    *        null.
    * @param classPathURLs the whole set of {@link URL}s that were loaded by IDE/Maven Surefire plugin when running the test. Not
    *        null.
-   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} for artifactIds. Not null.
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} for artifactIds. Can be null.
    * @param providedExclusions Maven artifacts to be excluded from the provided scope direct dependencies of rootArtifact. In
    *        format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    * @param providedInclusions Maven artifacts to be excluded from the provided scope direct dependencies of rootArtifact. In
@@ -82,7 +82,6 @@ public class ClassPathClassifierContext {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder cannot be null");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder cannot be null");
     checkNotNull(classPathURLs, "classPathURLs cannot be null");
-    checkNotNull(workspaceLocationResolver, "workspaceLocationResolver cannot be null");
 
     this.rootArtifactClassesFolder = rootArtifactClassesFolder;
     this.rootArtifactTestClassesFolder = rootArtifactTestClassesFolder;
@@ -128,7 +127,7 @@ public class ClassPathClassifierContext {
   }
 
   /**
-   * @return {@link WorkspaceLocationResolver} resolver for artifactIds folders.
+   * @return {@link WorkspaceLocationResolver} resolver for artifactIds folders. Can be {@code null}
    */
   public WorkspaceLocationResolver getWorkspaceLocationResolver() {
     return workspaceLocationResolver;

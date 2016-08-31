@@ -196,4 +196,5 @@ public class DefaultWorkspaceReader implements WorkspaceReader {
                                          .createMavenProject(new File(model.getPomFile().getParent(),
                                                                       model.getParent().getRelativePath())));
   }
+
 }

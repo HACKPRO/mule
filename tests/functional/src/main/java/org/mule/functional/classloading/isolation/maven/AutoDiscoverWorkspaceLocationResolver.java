@@ -13,6 +13,7 @@ import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
 import static java.util.stream.Collectors.toList;
 import static org.apache.commons.lang.StringUtils.isNotBlank;
+import static org.mule.runtime.core.util.Preconditions.checkNotNull;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
 import org.mule.runtime.core.util.StringMessageUtils;
@@ -42,13 +43,12 @@ import org.slf4j.LoggerFactory;
  * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} (if present) to define the root project directory.
  * <p/>
  * Matches each Maven project found with the class path in order to check if it is part of the build session. When
- * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} is not present, meaning that this not running under a Maven build session, the
- * Workspace references would be resolved by filtering the class path {@link URL}s that are Maven project references, not packaged
- * jars. path.
+ * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} is not present, meaning that this not running under a Maven build session,
+ * Workspace references are resolved by filtering class path {@link URL}s if they reference to a Maven project (a target/classes
+ * or target/test-classes/ folders).
  * <p/>
- * In order to discover Maven projects and have references resolved through Workspace to its compiled classes when running from
- * Maven with surefire Maven plugin, if the plugin has been configured with {@code forkMode=always} the following Maven system
- * property has to be propagated on surefire configuration:
+ * If Maven surefire plugin is used to run test in Maven and the plugin has been configured with {@code forkMode=always} the
+ * following Maven system property has to be propagated on surefire configuration:
  * 
  * <pre>
  *  <systemPropertyVariables>
@@ -76,6 +76,9 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * @throws IllegalArgumentException if the rootArtifactClassesFolder doesn't point to a Maven project.
    */
   public AutoDiscoverWorkspaceLocationResolver(List<URL> classPath, File rootArtifactClassesFolder) {
+    checkNotNull(classPath, "classPath cannot be null");
+    checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder cannot be null");
+
     File rootArtifactFolder = rootArtifactClassesFolder.getParentFile().getParentFile();
     if (logger.isDebugEnabled()) {
       logger.debug("Discovering workspace artifacts locations from '{}'", rootArtifactFolder);
@@ -145,11 +148,9 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * Discovers Maven projects by searching in class path provided by IDE or Maven (surefire Maven plugin) by looking at those
    * {@link URL}s that have a {@value #POM_XML_FILE} in its {@code url.toFile.getParent.getParent}, because reference between
    * modules in IDE should be like the following:
-   * 
    * <pre>
    *
    * </pre>
-   * 
    * @param classPath
    */
   private void discoverMavenProjectsFromClassPath(List<URL> classPath) {

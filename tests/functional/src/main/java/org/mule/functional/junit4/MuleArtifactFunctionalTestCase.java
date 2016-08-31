@@ -10,7 +10,7 @@ package org.mule.functional.junit4;
 import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 
 /**
- * Base class for mule functional test cases that run the test using class loading isolation. This class will set the default
+ * Base class for mule functional test cases that run tests using class loading isolation. This class will set the default
  * values for testing mule components.
  *
  * @since 4.0

@@ -10,9 +10,7 @@ package org.mule.functional.api.classloading.isolation;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.mule.runtime.core.util.Preconditions.checkNotNull;
-import org.mule.functional.classloading.isolation.classification.AetherClassPathClassifier;
 import org.mule.functional.classloading.isolation.classloader.IsolatedClassLoaderFactory;
-import org.mule.functional.classloading.isolation.maven.AutoDiscoverWorkspaceLocationResolver;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,8 +38,8 @@ import java.util.Set;
  */
 public class ArtifactIsolatedClassLoaderBuilder {
 
-  private ClassPathClassifier classPathClassifier = new AetherClassPathClassifier();
-  private ClassPathUrlProvider classPathUrlProvider = new ClassPathUrlProvider();
+  private ClassPathClassifier classPathClassifier;
+  private ClassPathUrlProvider classPathUrlProvider;
   private WorkspaceLocationResolver workspaceLocationResolver;
 
   private IsolatedClassLoaderFactory isolatedClassLoaderFactory = new IsolatedClassLoaderFactory();
@@ -183,10 +181,6 @@ public class ArtifactIsolatedClassLoaderBuilder {
     checkNotNull(rootArtifactClassesFolder, "rootArtifactClassesFolder has to be set");
     checkNotNull(rootArtifactTestClassesFolder, "rootArtifactTestClassesFolder has to be set");
     checkNotNull(classPathUrlProvider, "classPathUrlProvider has to be set");
-    if (workspaceLocationResolver == null) {
-      workspaceLocationResolver =
-          new AutoDiscoverWorkspaceLocationResolver(classPathUrlProvider.getURLs(), rootArtifactClassesFolder);
-    }
 
     ClassPathClassifierContext context;
     try {

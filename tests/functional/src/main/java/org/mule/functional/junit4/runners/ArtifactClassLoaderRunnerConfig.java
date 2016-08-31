@@ -51,12 +51,12 @@ public @interface ArtifactClassLoaderRunnerConfig {
    * Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In format
    * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    * <p/>
-   * This artifacts have to be declared as {@code provided} scope in rootArtifact direct dependencies and no matter if they were excluded
-   * or not from {@link #providedExclusions()}  and {@link #plugins()}. Meanning that the same artifact could ended up being added to the
-   * container class loader and as plugin.
+   * This artifacts have to be declared as {@code provided} scope in rootArtifact direct dependencies and no matter if they were
+   * excluded or not from {@link #providedExclusions()} and {@link #plugins()}. Meanning that the same artifact could ended up
+   * being added to the container class loader and as plugin.
    *
-   * @return Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In format
-   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
+   * @return Maven artifacts to be explicitly included from the {@code provided} scope direct dependencies of the rootArtifact. In
+   *         format {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
   String[] providedInclusions() default {};
 
@@ -98,13 +98,11 @@ public @interface ArtifactClassLoaderRunnerConfig {
   Class[] exportPluginClasses() default {};
 
   /**
-   * List of {@code <groupId>:<artifactId>:[[<extension>]:<version>]} to define the coordinates of artifacts to be excluded from the
-   * application {@link ClassLoader}. Default and base list of artifacts is already defined in {@code excluded.properties} file
-   * and by using this annotation the ones defined here will be appended to those defined in file.
+   * Maven artifacts to be excluded from the {@code test} scope direct dependencies of the rootArtifact. In format
+   * {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    *
-   * @return a comma separated list of coordinates (it does support wildcards org.mule:*:*:* or *:mule-core:*:* and partial
-   *         matching org.mule*:*:*:*) that would be used in order to exclude artifacts that should not be added to the
-   *         application due to they will be already exposed through the container.
+   * @return Maven artifacts to be excluded from the {@code test} scope direct dependencies of the rootArtifact. In format
+   *         {@code <groupId>:<artifactId>:[[<extension>]:<version>]}.
    */
   // TODO: MULE-10083 - Improve how ArtifactClassLoaderRunner classifies the classpath for selecting which artifacts are already
   // bundled within the container
