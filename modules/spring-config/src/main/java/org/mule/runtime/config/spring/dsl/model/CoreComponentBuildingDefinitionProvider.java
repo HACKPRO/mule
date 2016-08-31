@@ -39,14 +39,6 @@ import static org.mule.runtime.core.exception.ErrorTypeRepository.ANY_IDENTIFIER
 import static org.mule.runtime.core.retry.policies.SimpleRetryPolicyTemplate.RETRY_COUNT_FOREVER;
 import static org.mule.runtime.core.util.ClassUtils.instanciateClass;
 import static org.mule.runtime.core.util.Preconditions.checkState;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
 import org.mule.runtime.api.config.PoolingProfile;
 import org.mule.runtime.api.message.ErrorType;
 import org.mule.runtime.config.spring.MuleConfigurationConfigurator;
@@ -152,6 +144,7 @@ import org.mule.runtime.core.source.polling.MessageProcessorPollingOverride;
 import org.mule.runtime.core.source.polling.PollingMessageSource;
 import org.mule.runtime.core.source.polling.schedule.FixedFrequencySchedulerFactory;
 import org.mule.runtime.core.source.polling.watermark.Watermark;
+import org.mule.runtime.core.transaction.TransactionType;
 import org.mule.runtime.core.transaction.lookup.GenericTransactionManagerLookupFactory;
 import org.mule.runtime.core.transaction.lookup.JBossTransactionManagerLookupFactory;
 import org.mule.runtime.core.transaction.lookup.JRunTransactionManagerLookupFactory;
@@ -189,6 +182,13 @@ import org.mule.runtime.core.transformer.simple.SerializableToByteArray;
 import org.mule.runtime.core.transformer.simple.SetPayloadMessageProcessor;
 import org.mule.runtime.core.transformer.simple.StringAppendTransformer;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
 /**
  * {@link org.mule.runtime.config.spring.dsl.api.ComponentBuildingDefinition} definitions for the components provided by the core
  * runtime.
@@ -223,7 +223,7 @@ public class CoreComponentBuildingDefinitionProvider implements ComponentBuildin
   private static final String WIRE_TAP = "wire-tap";
   private static final String ENRICHER = "enricher";
   private static final String ASYNC = "async";
-  private static final String TRANSACTIONAL = "transactional";
+  private static final String BLOCK = "block";
   private static final String UNTIL_SUCCESSFUL = "until-successful";
   private static final String FOREACH = "foreach";
   private static final String FIRST_SUCCESSFUL = "first-successful";
@@ -235,6 +235,8 @@ public class CoreComponentBuildingDefinitionProvider implements ComponentBuildin
   private static final String REQUEST_REPLY = "request-reply";
   private static final String ERROR_TYPE = "errorType";
   private static final String TYPE = "type";
+  private static final String TX_ACTION = "transactionalAction";
+  private static final String TX_TYPE = "transactionType";
 
   private static ComponentBuildingDefinition.Builder baseDefinition =
       new ComponentBuildingDefinition.Builder().withNamespace(CORE_NAMESPACE_NAME);
@@ -392,11 +394,12 @@ public class CoreComponentBuildingDefinitionProvider implements ComponentBuildin
             .withSetterParameterDefinition(MESSAGE_PROCESSORS, fromChildCollectionConfiguration(MessageProcessor.class).build())
             .withSetterParameterDefinition(NAME, fromSimpleParameter(NAME).build()).build());
     componentBuildingDefinitions
-        .add(baseDefinition.copy().withIdentifier(TRANSACTIONAL).withTypeDefinition(fromType(TransactionalMessageProcessor.class))
+        .add(baseDefinition.copy().withIdentifier(BLOCK).withTypeDefinition(fromType(TransactionalMessageProcessor.class))
             .withObjectFactoryType(TransactionalMessageProcessorsFactoryBean.class)
             .withSetterParameterDefinition("exceptionListener", fromChildConfiguration(MessagingExceptionHandler.class).build())
             .withSetterParameterDefinition(MESSAGE_PROCESSORS, fromChildCollectionConfiguration(MessageProcessor.class).build())
-            .withSetterParameterDefinition("action", fromSimpleParameter("action").build()).build());
+            .withSetterParameterDefinition(TX_ACTION, fromSimpleParameter(TX_ACTION).build())
+            .withSetterParameterDefinition(TX_TYPE, fromSimpleParameter(TX_TYPE, getTransactionTypeConverter()).build()).build());
 
     componentBuildingDefinitions
         .add(baseDefinition.copy().withIdentifier(UNTIL_SUCCESSFUL).withTypeDefinition(fromType(UntilSuccessful.class))
@@ -560,6 +563,10 @@ public class CoreComponentBuildingDefinitionProvider implements ComponentBuildin
     componentBuildingDefinitions.addAll(getEntryPointResolversDefinitions());
 
     return componentBuildingDefinitions;
+  }
+
+  private TypeConverter<String, TransactionType> getTransactionTypeConverter() {
+    return TransactionType::valueOf;
   }
 
   private TypeConverter<String, ErrorType> getErrorTypeConverter() {

@@ -6,6 +6,7 @@
  */
 package org.mule.runtime.config.spring.factories;
 
+import static java.util.ServiceLoader.load;
 import org.mule.runtime.core.AbstractAnnotatedObject;
 import org.mule.runtime.core.api.MuleContext;
 import org.mule.runtime.core.api.context.MuleContextAware;
@@ -14,11 +15,14 @@ import org.mule.runtime.core.api.exception.MessagingExceptionHandlerAware;
 import org.mule.runtime.core.api.processor.MessageProcessor;
 import org.mule.runtime.core.api.processor.MessageProcessorBuilder;
 import org.mule.runtime.core.api.transaction.TransactionFactory;
+import org.mule.runtime.core.api.transaction.TransactionTypeFactory;
 import org.mule.runtime.core.processor.DelegateTransactionFactory;
 import org.mule.runtime.core.processor.TransactionalInterceptingMessageProcessor;
 import org.mule.runtime.core.processor.chain.DefaultMessageProcessorChainBuilder;
 import org.mule.runtime.core.transaction.MuleTransactionConfig;
+import org.mule.runtime.core.transaction.TransactionType;
 
+import java.util.Iterator;
 import java.util.List;
 
 import org.springframework.beans.factory.FactoryBean;
@@ -27,7 +31,8 @@ public class TransactionalMessageProcessorsFactoryBean extends AbstractAnnotated
 
   protected List messageProcessors;
   protected MessagingExceptionHandler exceptionListener;
-  protected String action;
+  protected String transactionalAction;
+  private TransactionType transactionType;
   private MuleContext muleContext;
 
   @Override
@@ -46,9 +51,7 @@ public class TransactionalMessageProcessorsFactoryBean extends AbstractAnnotated
     TransactionalInterceptingMessageProcessor txProcessor = new TransactionalInterceptingMessageProcessor();
     txProcessor.setAnnotations(getAnnotations());
     txProcessor.setExceptionListener(this.exceptionListener);
-    MuleTransactionConfig transactionConfig = createTransactionConfig(this.action);
-    txProcessor.setTransactionConfig(transactionConfig);
-    transactionConfig.setFactory(getTransactionFactory());
+    txProcessor.setTransactionConfig(createTransactionConfig(this.transactionalAction, this.transactionType));
     builder.chain(txProcessor);
     for (Object processor : messageProcessors) {
       if (processor instanceof MessageProcessor) {
@@ -69,10 +72,22 @@ public class TransactionalMessageProcessorsFactoryBean extends AbstractAnnotated
     return new DelegateTransactionFactory();
   }
 
-  protected MuleTransactionConfig createTransactionConfig(String action) {
+  protected MuleTransactionConfig createTransactionConfig(String action, TransactionType type) {
     MuleTransactionConfig transactionConfig = new MuleTransactionConfig();
     transactionConfig.setActionAsString(action);
+    transactionConfig.setFactory(lookUpTransactionFactory(type));
     return transactionConfig;
+  }
+
+  private TransactionFactory lookUpTransactionFactory(TransactionType type) {
+    Iterator<TransactionTypeFactory> factories = load(TransactionTypeFactory.class).iterator();
+    while (factories.hasNext()) {
+      TransactionTypeFactory possibleFactory = factories.next();
+      if (type.equals(possibleFactory.getType())) {
+        return possibleFactory;
+      }
+    }
+    throw new IllegalArgumentException(String.format("No factory available for transaction type %s", type));
   }
 
   @Override
@@ -84,12 +99,16 @@ public class TransactionalMessageProcessorsFactoryBean extends AbstractAnnotated
     this.exceptionListener = exceptionListener;
   }
 
-  public void setAction(String action) {
-    this.action = action;
+  public void setTransactionalAction(String action) {
+    this.transactionalAction = action;
   }
 
   @Override
   public void setMuleContext(MuleContext context) {
     this.muleContext = context;
+  }
+
+  public void setTransactionType(TransactionType transactionType) {
+    this.transactionType = transactionType;
   }
 }

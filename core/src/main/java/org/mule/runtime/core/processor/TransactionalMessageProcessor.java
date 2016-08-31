@@ -6,6 +6,7 @@
  */
 package org.mule.runtime.core.processor;
 
+import static java.util.ServiceLoader.load;
 import org.mule.runtime.core.api.MuleEvent;
 import org.mule.runtime.core.api.MuleException;
 import org.mule.runtime.core.api.context.MuleContextAware;
@@ -16,9 +17,12 @@ import org.mule.runtime.core.api.processor.MessageProcessor;
 import org.mule.runtime.core.api.processor.MessageProcessorBuilder;
 import org.mule.runtime.core.api.processor.MessageProcessorChain;
 import org.mule.runtime.core.api.transaction.TransactionFactory;
+import org.mule.runtime.core.api.transaction.TransactionTypeFactory;
 import org.mule.runtime.core.processor.chain.DefaultMessageProcessorChainBuilder;
 import org.mule.runtime.core.transaction.MuleTransactionConfig;
+import org.mule.runtime.core.transaction.TransactionType;
 
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -32,7 +36,8 @@ public class TransactionalMessageProcessor extends TransactionalInterceptingMess
     implements Lifecycle, MuleContextAware {
 
   protected List messageProcessors;
-  protected String action;
+  protected String transactionalAction;
+  private TransactionType transactionType;
   private MessageProcessorChain delegate;
 
   @Override
@@ -46,8 +51,7 @@ public class TransactionalMessageProcessor extends TransactionalInterceptingMess
     builder.setName("'transaction' child processor chain");
     TransactionalInterceptingMessageProcessor txProcessor = new TransactionalInterceptingMessageProcessor();
     txProcessor.setExceptionListener(this.exceptionListener);
-    MuleTransactionConfig transactionConfig = createTransactionConfig(this.action);
-    txProcessor.setTransactionConfig(transactionConfig);
+    txProcessor.setTransactionConfig(createTransactionConfig(this.transactionalAction, this.transactionType));
     transactionConfig.setFactory(getTransactionFactory());
     builder.chain(txProcessor);
     for (Object processor : messageProcessors) {
@@ -74,17 +78,33 @@ public class TransactionalMessageProcessor extends TransactionalInterceptingMess
     return new DelegateTransactionFactory();
   }
 
-  protected MuleTransactionConfig createTransactionConfig(String action) {
+  protected MuleTransactionConfig createTransactionConfig(String action, TransactionType type) {
     MuleTransactionConfig transactionConfig = new MuleTransactionConfig();
     transactionConfig.setActionAsString(action);
+    transactionConfig.setFactory(lookUpTransactionFactory(type));
     return transactionConfig;
+  }
+
+  private TransactionFactory lookUpTransactionFactory(TransactionType type) {
+    Iterator<TransactionTypeFactory> factories = load(TransactionTypeFactory.class).iterator();
+    while (factories.hasNext()) {
+      TransactionTypeFactory possibleFactory = factories.next();
+      if (type.equals(possibleFactory.getType())) {
+        return possibleFactory;
+      }
+    }
+    throw new IllegalArgumentException(String.format("No factory available for transaction type %s", type));
   }
 
   public void setMessageProcessors(List messageProcessors) {
     this.messageProcessors = messageProcessors;
   }
 
-  public void setAction(String action) {
-    this.action = action;
+  public void setTransactionalAction(String action) {
+    this.transactionalAction = action;
+  }
+
+  public void setTransactionType(TransactionType transactionType) {
+    this.transactionType = transactionType;
   }
 }
