@@ -8,11 +8,9 @@
 package org.mule.functional.classloading.isolation.maven;
 
 import static java.lang.System.getProperty;
-import static java.lang.System.getenv;
 import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.Files.walkFileTree;
-import static java.nio.file.Paths.get;
 import static java.util.stream.Collectors.toList;
 import static org.mule.runtime.core.util.StringMessageUtils.DEFAULT_MESSAGE_WIDTH;
 import org.mule.functional.api.classloading.isolation.WorkspaceLocationResolver;
@@ -27,6 +25,7 @@ import java.net.URL;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
@@ -34,39 +33,32 @@ import java.util.Map;
 
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
-import org.eclipse.aether.artifact.Artifact;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Discovers the Maven projects {@link Artifact} from the {@link System#getProperty(String)} {@value #USER_DIR_SYSTEM_PROPERTY}
- * folder and Maven variable {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} or environment variable {@value #ROOT_PROJECT_ENV_VAR}
- * to define the root project directory.
+ * Discovers Maven projects from the rootArtifactClassesFolder folder and Maven variable
+ * {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} (if present) to define the root project directory.
  * <p/>
- * In order be discovered Maven projects should be defined in a multi module way.
+ * Matches each Maven project found with the class path in order to check if it is part of the build session or IDE JUnit class
+ * path.
  * <p/>
- * The discovering process checks if {@value #USER_DIR_SYSTEM_PROPERTY} points to a {@value #POM_XML_FILE} first, then it
- * traverses the parent folder hierarchy until it reaches the parent project for the whole workspace based on either
- * {@value #USER_DIR_SYSTEM_PROPERTY} or {@value #ROOT_PROJECT_ENV_VAR}, or it stops at any parent folder that it is not a Maven
- * project (by checking if it has a {@value #POM_XML_FILE}).
- * <p/>
- * Once root if found, it traverse the file tree to register each Maven project (module) and location. For the
- * rootProjectDirectory if both variables {@value #USER_DIR_SYSTEM_PROPERTY} and {@value #ROOT_PROJECT_ENV_VAR} are set it will
- * take precedence the one from Maven. If no one of them is set most likely it will register only the Maven project located at
- * {@value #USER_DIR_SYSTEM_PROPERTY}, if it is a Maven project, and artifacts will be resolved using Maven repositories.
- * <p/>
- * For each Maven project found it will check if it is present in the class path {@link URL}'s in order to build an accurate
- * Workspace.
+ * In order to discover Maven projects and have references resolved through its compiled classes when running from Maven with
+ * surefire Maven plugin, if it has been configure with {@code forkMode=always} the following Maven system property has to be
+ * propagated on surefire configuration:
+ * 
+ * <pre>
+ *  <systemPropertyVariables>
+ *    <maven.multiModuleProjectDirectory>${maven.multiModuleProjectDirectory}</maven.multiModuleProjectDirectory>
+ *  </systemPropertyVariables>
+ * </pre>
  *
  * @since 4.0
  */
 public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationResolver {
 
   public static final String POM_XML_FILE = "pom.xml";
-  public static final String USER_DIR_SYSTEM_PROPERTY = "user.dir";
   public static final String MAVEN_MULTI_MODULE_PROJECT_DIRECTORY = "maven.multiModuleProjectDirectory";
-  public static final String ROOT_PROJECT_ENV_VAR = "rootProjectDir";
-  public static final String WORKSPACE_ENV_VARIABLE = "WORKSPACE";
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -78,33 +70,67 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
    * Creates an instance of this class.
    *
    * @param classPath {@link URL}'s defined in class path
-   * @throws IllegalArgumentException if the {@value #USER_DIR_SYSTEM_PROPERTY} doesn't point to a Maven project.
+   * @throws IllegalArgumentException if the rootArtifactClassesFolder doesn't point to a Maven project.
    */
-  public AutoDiscoverWorkspaceLocationResolver(List<URL> classPath) {
-    File userDir = new File(getProperty(USER_DIR_SYSTEM_PROPERTY));
-    logger.debug("Discovering workspace artifacts locations from System.property['{}']='{}'", USER_DIR_SYSTEM_PROPERTY, userDir);
-    if (!containsMavenProject(userDir)) {
-      logger.warn("Couldn't find any workspace reference for artifacts due to '{}' is not a Maven project", userDir);
+  public AutoDiscoverWorkspaceLocationResolver(List<URL> classPath, File rootArtifactClassesFolder) {
+    File rootArtifactFolder = rootArtifactClassesFolder.getParentFile().getParentFile();
+    if (logger.isDebugEnabled()) {
+      logger.debug("Discovering workspace artifacts locations from '{}'", rootArtifactFolder);
+    }
+    if (!containsMavenProject(rootArtifactFolder)) {
+      logger.warn("Couldn't find any workspace reference for artifacts due to '{}' is not a Maven project", rootArtifactFolder);
     }
 
-    Path rootProjectDirectory = getRootProjectPath(userDir);
-    logger.debug("Defined rootProjectDirectory='{}'", rootProjectDirectory);
+    String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
+    if (rootProjectDirectoryProperty != null) {
+      if (logger.isDebugEnabled()) {
+        logger.debug(
+            "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
+            MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
+      }
+      discoverMavenReactorProjects(rootProjectDirectoryProperty, classPath, rootArtifactClassesFolder);
+    } else {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Filtering class path entries to find out Maven projects");
+      }
+      discoverMavenProjectsFromClassPath(classPath);
+    }
+  }
 
-    File currentDir = userDir;
+  /**
+   * Traverses the directory tree from the {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY} property to look for Maven projects
+   * that are also listed as entries in class path.
+   *
+   * @param rootProjectDirectoryProperty the root directory of the multi-module project build session
+   * @param classPath the whole class path built by IDE or Maven (surefire Maven plugin)
+   * @param rootArtifactClassesFolder the current rootArtifact directory
+   */
+  private void discoverMavenReactorProjects(String rootProjectDirectoryProperty, List<URL> classPath,
+                                            File rootArtifactClassesFolder) {
+    Path rootProjectDirectory = Paths.get(rootProjectDirectoryProperty);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Defined rootProjectDirectory='{}'", rootProjectDirectory);
+    }
+
+    File currentDir = rootArtifactClassesFolder;
     File lastMavenProjectDir = currentDir;
     while (containsMavenProject(currentDir) && !currentDir.toPath().equals(rootProjectDirectory.getParent())) {
       lastMavenProjectDir = currentDir;
       currentDir = currentDir.getParentFile();
     }
 
-    logger.debug("Top folder found, parent pom found at: '{}'", lastMavenProjectDir);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Top folder found, parent pom found at: '{}'", lastMavenProjectDir);
+    }
     try {
       walkFileTree(lastMavenProjectDir.toPath(), new MavenDiscovererFileVisitor(classPath));
     } catch (IOException e) {
       throw new RuntimeException("Error while discovering Maven projects from path: " + currentDir.toPath());
     }
 
-    logger.debug("Workspace location discover process completed");
+    if (logger.isDebugEnabled()) {
+      logger.debug("Workspace location discover process completed");
+    }
     List<String> messages = Lists.newArrayList("Workspace:");
     messages.add(" ");
     messages.addAll(filePathByArtifactId.keySet());
@@ -112,43 +138,23 @@ public class AutoDiscoverWorkspaceLocationResolver implements WorkspaceLocationR
   }
 
   /**
-   * Looks for the root project directory using Maven property {@value #MAVEN_MULTI_MODULE_PROJECT_DIRECTORY}, or System
-   * environment variable {@value #ROOT_PROJECT_ENV_VAR} or just the userDir.
+   * Discovers Maven projects by searching in class path provided by IDE or Maven (surefire Maven plugin) by looking at those
+   * {@link URL}s that have a {@value #POM_XML_FILE} in its {@code url.toFile.getParent.getParent}, because reference between modules in IDE should be like the following:
+   * <pre>
    *
-   * @param userDir {@link File} the userDir where Java is executed.
-   * @return {@link Path} to the root directory or null if couldn't be found.
+   * </pre>
+   * @param classPath
    */
-  private Path getRootProjectPath(File userDir) {
-    String rootProjectDirectoryProperty = getProperty(MAVEN_MULTI_MODULE_PROJECT_DIRECTORY);
-    if (rootProjectDirectoryProperty != null) {
-      logger.debug(
-                   "Using Maven System.property['{}']='{}' to find out project root directory for discovering poms",
-                   MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, rootProjectDirectoryProperty);
-    } else {
-      logger.debug(
-                   "Checking if System.env['{}'] is set to find out project root directory for discovering poms",
-                   ROOT_PROJECT_ENV_VAR);
-      rootProjectDirectoryProperty = getenv(ROOT_PROJECT_ENV_VAR);
+  private void discoverMavenProjectsFromClassPath(List<URL> classPath) {
+    List<Path> classPaths = classPath.stream().map(url -> Paths.get(url.getFile())).collect(toList());
+    List<Path> mavenProjects = classPaths.stream().filter(
+        path -> containsMavenProject(path.getParent().getParent().toFile())).collect(toList());
+    if (logger.isDebugEnabled()) {
+      logger.debug("Filtered from class path Maven projects: {}", mavenProjects);
     }
-    // TODO(gfernandes) Just to make it work with Jenkins! Find out why maven multiModuleProjectDir is not populated!
-    if (rootProjectDirectoryProperty == null) {
-      logger.debug(
-                   "Checking if Jenkins System.env['{}'] is set to find out project root directory for discovering poms",
-                   WORKSPACE_ENV_VARIABLE);
-      rootProjectDirectoryProperty = getenv(WORKSPACE_ENV_VARIABLE);
-    }
-
-    if (rootProjectDirectoryProperty == null) {
-      logger.warn(
-                  "No way to get the 'rootProjectDirectory' using System.property[{}], neither System.env['{}'] so using: {}." +
-                      " Meaning that artifacts would be resolved to Maven repository if they are not found on workspace. " +
-                      "If running this from IDE set the environment variable to your $PROJECT_DIR$ for IDEA or $workspace_loc on Eclipse.",
-                  MAVEN_MULTI_MODULE_PROJECT_DIRECTORY, ROOT_PROJECT_ENV_VAR,
-                  userDir);
-      rootProjectDirectoryProperty = userDir.getAbsolutePath();
-    }
-    return get(rootProjectDirectoryProperty);
+    mavenProjects.stream().forEach(path -> resolvedArtifact(readMavenPomFile(getPomFile(path.toFile())).getArtifactId(), path));
   }
+
 
   /**
    * {@inheritDoc}
