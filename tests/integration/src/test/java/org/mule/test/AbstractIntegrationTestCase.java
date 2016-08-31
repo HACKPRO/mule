@@ -18,7 +18,7 @@ import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
  * @since 4.0
  */
 @ArtifactClassLoaderRunnerConfig(
-    pluginCoordinates = {"org.mule.modules:mule-module-validation", "org.mule.modules:mule-module-file"})
+    plugins = {"org.mule.modules:mule-module-validation", "org.mule.modules:mule-module-file"})
 public abstract class AbstractIntegrationTestCase extends MuleArtifactFunctionalTestCase {
 
 }
