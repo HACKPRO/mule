@@ -107,7 +107,7 @@ public class DefaultLocalMuleClient implements MuleClient {
     if (muleEvent.getError() == null) {
       return right(muleEvent.getMessage());
     }
-    return left(muleEvent.getError());
+    return left(muleEvent.getError().get());
   }
 
   @Override
@@ -192,7 +192,7 @@ public class DefaultLocalMuleClient implements MuleClient {
         return right(empty());
       }
       if (event.getError() != null) {
-        return left(event.getError());
+        return left(event.getError().get());
       }
       return right(ofNullable(event.getMessage()));
     } else {

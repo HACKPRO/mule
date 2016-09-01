@@ -15,6 +15,7 @@ import static org.mule.tck.MuleTestUtils.createErrorMock;
 import java.nio.charset.Charset;
 import java.time.OffsetTime;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -143,7 +144,7 @@ public class RequestContextTestCase extends AbstractMuleTestCase {
     }
 
     @Override
-    public Error getError() {
+    public Optional<Error> getError() {
       return null;
     }
 

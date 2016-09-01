@@ -25,7 +25,7 @@ public class OnErrorContinueEnricherTestCase extends AbstractIntegrationTestCase
 
     @Override
     public MuleEvent process(MuleEvent event) throws MuleException {
-      handled = event.getError().getException();
+      handled = event.getError().get().getException();
       return event;
     }
   }

@@ -122,7 +122,7 @@ public class OnErrorContinueHandlerTestCase extends AbstractMuleContextTestCase 
       }
     }));
     assertThat(result.getMessage().getPayload(), is("B"));
-    assertThat(result.getError(), is(nullValue()));
+    assertThat(result.getError().isPresent(), is(false));
   }
 
   @Test

@@ -6,6 +6,9 @@
  */
 package org.mule.runtime.core;
 
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 import static org.mule.runtime.core.api.config.MuleProperties.MULE_FORCE_SYNC_PROPERTY;
 import static org.mule.runtime.core.message.Correlation.NO_CORRELATION;
 import static org.mule.runtime.core.util.SystemUtils.getDefaultEncoding;
@@ -44,6 +47,7 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -93,7 +97,7 @@ public class DefaultMuleEvent implements MuleEvent, DeserializationPostInitialis
   private FlowCallStack flowCallStack = new DefaultFlowCallStack();
   protected boolean nonBlocking;
   private String legacyCorrelationId;
-  private Error error;
+  private Optional<Error> error = empty();
 
   // Constructors
 
@@ -362,7 +366,7 @@ public class DefaultMuleEvent implements MuleEvent, DeserializationPostInitialis
    * {@inheritDoc}
    */
   @Override
-  public Error getError() {
+  public Optional<Error> getError() {
     return error;
   }
 
@@ -755,6 +759,6 @@ public class DefaultMuleEvent implements MuleEvent, DeserializationPostInitialis
 
   @Override
   public void setError(Error error) {
-    this.error = error;
+    this.error = ofNullable(error);
   }
 }

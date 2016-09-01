@@ -35,7 +35,7 @@ public class ExceptionToMessagingExceptionExecutionInterceptor implements Messag
       return messageProcessor.process(event);
     } catch (Exception exception) {
       MessagingException messagingException;
-      if (!(exception instanceof MessagingException) || ((MessagingException) exception).getEvent().getError() == null) {
+      if (!(exception instanceof MessagingException) || !((MessagingException) exception).getEvent().getError().isPresent()) {
         ErrorType errorType;
         errorType = getErrorTypeFromFailingProcessor(messageProcessor, exception);
         if (exception instanceof MessagingException) {
@@ -47,8 +47,8 @@ public class ExceptionToMessagingExceptionExecutionInterceptor implements Messag
       } else {
         messagingException = (MessagingException) exception;
         //TODO - MULE-10266 - Once we remove the usage of MessagingException from within the mule component we can get rid of the messagingException.causedExactlyBy(..) condition.
-        if (event.getError() == null || !(event.getError().getException().equals(exception)
-            || messagingException.causedExactlyBy(event.getError().getException().getClass()))) {
+        if (!event.getError().isPresent() || !(event.getError().get().equals(exception)
+            || messagingException.causedExactlyBy(event.getError().get().getClass()))) {
           ErrorType errorType = getErrorTypeFromFailingProcessor(messageProcessor, exception);
           event.setError(ErrorBuilder.builder(exception).errorType(errorType).build());
         }

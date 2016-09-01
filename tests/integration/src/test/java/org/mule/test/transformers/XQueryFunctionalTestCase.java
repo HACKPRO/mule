@@ -6,8 +6,10 @@
  */
 package org.mule.test.transformers;
 
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import org.mule.test.AbstractIntegrationTestCase;
 import org.mule.runtime.core.api.MuleEvent;
@@ -19,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.custommonkey.xmlunit.XMLUnit;
+import org.hamcrest.core.Is;
 import org.junit.Test;
 
 public class XQueryFunctionalTestCase extends AbstractIntegrationTestCase {
@@ -50,7 +53,7 @@ public class XQueryFunctionalTestCase extends AbstractIntegrationTestCase {
 
     MuleMessage message = muleEvent.getMessage();
     assertNotNull(message);
-    assertNull(muleEvent.getError());
+    assertThat(muleEvent.getError().isPresent(), is(false));
     // Compare results
     assertTrue(XMLUnit.compareXML(getPayloadAsString(message), resultData).similar());
   }
