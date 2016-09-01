@@ -267,6 +267,9 @@ public class LocalRepositoryService {
    * @param node root {@link DependencyNode}, can be a "null" root (imaginary root)
    * @param e {@link DependencyResolutionException} the error to collect paths.
    */
+  //TODO: expose this so container classification logic could get this missing artifacts from launcher (classpath)
+  // log how to download manually the artifact:
+  // mvn org.apache.maven.plugins:maven-dependency-plugin:get -Dartifact=org.mule:mule-core:4.0-SNAPSHOT:jar -DrepoUrl=https://repository.mulesoft.org/nexus/content/repositories/public/
   private void logUnresolvedArtifacts(DependencyNode node, DependencyResolutionException e) {
     List<ArtifactResult> artifactResults =
         e.getResult().getArtifactResults().stream().filter(artifactResult -> !artifactResult.getExceptions().isEmpty()).collect(
