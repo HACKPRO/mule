@@ -206,7 +206,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
     assertExpectedOutput(metadataDescriptor.getOutputMetadata(), personType, void.class);
 
     assertThat(metadataDescriptor.getContentMetadata().isPresent(), is(true));
-    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", Object.class);
+    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", typeBuilder.nullType().build());
 
     assertThat(metadataDescriptor.getParametersMetadata(), is(empty()));
   }
@@ -313,7 +313,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
     final ComponentMetadataDescriptor metadataDescriptor = getComponentDynamicMetadata();
 
 
-    assertExpectedOutput(metadataDescriptor.getOutputMetadata(), Object.class, void.class);
+    assertExpectedOutput(metadataDescriptor.getOutputMetadata(), typeBuilder.anyType().build(), void.class);
 
     assertThat(metadataDescriptor.getParametersMetadata().size(), is(1));
     assertExpectedType(metadataDescriptor.getParametersMetadata().get(0), "type", String.class);
@@ -335,7 +335,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
     assertExpectedType(metadataDescriptor.getParametersMetadata().get(0), "type", String.class);
 
     assertThat(metadataDescriptor.getContentMetadata().isPresent(), is(true));
-    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", Object.class);
+    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", typeBuilder.nullType().build());
   }
 
   @Test
@@ -344,7 +344,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
 
     final ComponentMetadataDescriptor metadataDescriptor = getComponentDynamicMetadata(nullMetadataKey);
 
-    assertExpectedOutput(metadataDescriptor.getOutputMetadata(), Object.class, void.class);
+    assertExpectedOutput(metadataDescriptor.getOutputMetadata(), typeBuilder.anyType().build(), void.class);
 
     assertThat(metadataDescriptor.getContentMetadata().isPresent(), is(true));
     assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", personType);

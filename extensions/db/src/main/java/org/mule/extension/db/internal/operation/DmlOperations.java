@@ -23,7 +23,8 @@ import org.mule.extension.db.internal.DbConnector;
 import org.mule.extension.db.internal.domain.connection.DbConnection;
 import org.mule.extension.db.internal.domain.executor.SelectExecutor;
 import org.mule.extension.db.internal.domain.executor.StoredProcedureExecutor;
-import org.mule.extension.db.internal.domain.metadata.SelectOutputResolver;
+import org.mule.extension.db.internal.domain.metadata.SelectMetadataResolver;
+import org.mule.extension.db.internal.domain.metadata.StoredProcedureMetadataResolver;
 import org.mule.extension.db.internal.domain.query.Query;
 import org.mule.extension.db.internal.domain.query.QueryType;
 import org.mule.extension.db.internal.domain.statement.QueryStatementFactory;
@@ -75,7 +76,7 @@ public class DmlOperations extends BaseDbOperations {
    * @return depending on the value of {@code streaming}, it can be a {@link List} or {@link Iterator} of maps
    * @throws SQLException if an error is produced
    */
-  @MetadataScope(outputResolver = SelectOutputResolver.class)
+  @MetadataScope(outputResolver = SelectMetadataResolver.class, contentResolver = SelectMetadataResolver.class)
   public InterceptingCallback<Object> select(@ParameterGroup QueryDefinition query,
                                              @Optional(defaultValue = "false") @Expression(NOT_SUPPORTED) boolean streaming,
                                              @ParameterGroup StatementAttributes statementAttributes,
@@ -167,7 +168,7 @@ public class DmlOperations extends BaseDbOperations {
    * @return A {@link Map} with the procedure's output
    * @throws SQLException if an error is produced
    */
-  @MetadataScope(outputResolver = SelectOutputResolver.class)
+  @MetadataScope(outputResolver = StoredProcedureMetadataResolver.class)
   public InterceptingCallback<Map<String, Object>> storedProcedure(@ParameterGroup StoredProcedureCall call,
                                                                    @Optional(
                                                                        defaultValue = "false") @Expression(NOT_SUPPORTED) boolean streaming,

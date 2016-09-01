@@ -13,6 +13,8 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.junit.Assert.assertThat;
 import static org.mule.extension.db.integration.DbTestUtil.selectData;
 import static org.mule.extension.db.integration.TestRecordUtil.assertRecords;
+import static org.mule.metadata.api.model.MetadataFormat.JAVA;
+import static org.mule.runtime.api.metadata.MetadataKeyBuilder.newKey;
 import org.mule.extension.db.api.StatementResult;
 import org.mule.extension.db.integration.model.AbstractTestDatabase;
 import org.mule.extension.db.integration.model.Field;
@@ -23,7 +25,16 @@ import org.mule.functional.junit4.FlowRunner;
 import org.mule.functional.junit4.MuleArtifactFunctionalTestCase;
 import org.mule.functional.junit4.runners.ArtifactClassLoaderRunnerConfig;
 import org.mule.functional.junit4.runners.RunnerDelegateTo;
+import org.mule.metadata.api.ClassTypeLoader;
+import org.mule.metadata.api.builder.BaseTypeBuilder;
 import org.mule.runtime.api.message.MuleMessage;
+import org.mule.runtime.api.metadata.MetadataManager;
+import org.mule.runtime.api.metadata.ProcessorId;
+import org.mule.runtime.api.metadata.descriptor.ComponentMetadataDescriptor;
+import org.mule.runtime.api.metadata.resolving.MetadataResult;
+import org.mule.runtime.core.api.registry.RegistrationException;
+import org.mule.runtime.core.internal.metadata.MuleMetadataManager;
+import org.mule.runtime.extension.api.introspection.declaration.type.ExtensionsTypeLoaderFactory;
 import org.mule.runtime.extension.api.runtime.ConfigurationProvider;
 
 import java.sql.SQLException;
@@ -43,6 +54,8 @@ public abstract class AbstractDbIntegrationTestCase extends MuleArtifactFunction
 
   private final String dataSourceConfigResource;
   protected final AbstractTestDatabase testDatabase;
+  protected final BaseTypeBuilder<?> typeBuilder = BaseTypeBuilder.create(JAVA);
+  protected final ClassTypeLoader typeLoader = ExtensionsTypeLoaderFactory.getDefault().createTypeLoader();
 
   public AbstractDbIntegrationTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
     this.dataSourceConfigResource = dataSourceConfigResource;
@@ -152,5 +165,12 @@ public abstract class AbstractDbIntegrationTestCase extends MuleArtifactFunction
     assertThat(response.getPayload(), is(instanceOf(Map.class)));
     return response.getPayload();
 
+  }
+
+  protected MetadataResult<ComponentMetadataDescriptor> getComponentMetadata(String flow, String query)
+      throws RegistrationException {
+    MetadataManager metadataManager = muleContext.getRegistry().lookupObject(MuleMetadataManager.class);
+    return metadataManager
+        .getMetadata(new ProcessorId(flow, "0"), newKey(query).build());
   }
 }

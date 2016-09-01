@@ -7,8 +7,7 @@
 
 package org.mule.extension.db.integration.model;
 
-import static org.mule.common.metadata.datatype.DataType.DECIMAL;
-import org.mule.common.metadata.datatype.DataType;
+import org.mule.metadata.api.model.MetadataType;
 import org.mule.runtime.core.util.ClassUtils;
 
 import java.math.BigDecimal;
@@ -143,18 +142,18 @@ public class OracleTestDatabase extends AbstractTestDatabase {
   }
 
   @Override
-  public DataType getIdFieldInputMetaDataType() {
-    return DECIMAL;
+  public MetadataType getIdFieldInputMetaDataType() {
+    return typeBuilder.numberType().build();
   }
 
   @Override
-  public DataType getIdFieldOutputMetaDataType() {
-    return DECIMAL;
+  public MetadataType getIdFieldOutputMetaDataType() {
+    return typeBuilder.numberType().build();
   }
 
   @Override
-  public DataType getPositionFieldOutputMetaDataType() {
-    return DECIMAL;
+  public MetadataType getPositionFieldOutputMetaDataType() {
+    return typeBuilder.numberType().build();
   }
 
   @Override

@@ -26,6 +26,12 @@ import org.mule.extension.db.integration.model.Planet;
 import org.mule.extension.db.integration.model.Record;
 import org.mule.runtime.api.message.MuleEvent;
 import org.mule.runtime.api.message.MuleMessage;
+import org.mule.runtime.api.metadata.MetadataKeyBuilder;
+import org.mule.runtime.api.metadata.MetadataManager;
+import org.mule.runtime.api.metadata.ProcessorId;
+import org.mule.runtime.api.metadata.descriptor.ComponentMetadataDescriptor;
+import org.mule.runtime.api.metadata.resolving.MetadataResult;
+import org.mule.runtime.core.internal.metadata.MuleMetadataManager;
 
 import java.util.Iterator;
 import java.util.List;
@@ -48,6 +54,15 @@ public class SelectTestCase extends AbstractDbIntegrationTestCase {
   @Override
   protected String[] getFlowConfigurationResources() {
     return new String[] {"integration/select/select-config.xml"};
+  }
+
+  @Test
+  public void selectMetadata() throws Exception {
+    MetadataManager metadataManager = muleContext.getRegistry().lookupObject(MuleMetadataManager.class);
+    MetadataResult<ComponentMetadataDescriptor> select = metadataManager
+        .getMetadata(new ProcessorId("select", "0"), MetadataKeyBuilder.newKey("select * from PLANET order by ID").build());
+    MuleMessage response = flowRunner("select").run().getMessage();
+    assertMessageContains(response, getAllPlanetRecords());
   }
 
   @Test

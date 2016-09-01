@@ -18,15 +18,20 @@ import org.mule.extension.db.integration.model.Field;
 import org.mule.extension.db.integration.model.OracleTestDatabase;
 import org.mule.extension.db.integration.model.Record;
 import org.mule.runtime.api.message.MuleMessage;
+import org.mule.runtime.api.metadata.MetadataKeyBuilder;
+import org.mule.runtime.api.metadata.MetadataManager;
+import org.mule.runtime.api.metadata.ProcessorId;
+import org.mule.runtime.api.metadata.descriptor.ComponentMetadataDescriptor;
+import org.mule.runtime.api.metadata.resolving.MetadataResult;
+import org.mule.runtime.core.internal.metadata.MuleMetadataManager;
 
 import java.util.LinkedList;
 import java.util.List;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-@Ignore("MULE-10257")
+//@Ignore("MULE-10257")
 public class SelectJavaUdtTestCase extends AbstractDbIntegrationTestCase {
 
   public SelectJavaUdtTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
@@ -54,6 +59,10 @@ public class SelectJavaUdtTestCase extends AbstractDbIntegrationTestCase {
 
   @Test
   public void returnsMappedObject() throws Exception {
+    MetadataManager metadataManager = muleContext.getRegistry().lookupObject(MuleMetadataManager.class);
+    MetadataResult<ComponentMetadataDescriptor> select = metadataManager
+        .getMetadata(new ProcessorId("returnsUDT", "0"), MetadataKeyBuilder.newKey("select * from REGION_MANAGERS").build());
+
     MuleMessage response = flowRunner("returnsUDT").run().getMessage();
 
     assertRecords(response.getPayload(),
