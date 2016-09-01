@@ -7,9 +7,8 @@
 
     <flow name="selectMetadata">
         <dbn:select>
-            <dbn:sql>select * from PLANET</dbn:sql>
+            <dbn:sql></dbn:sql>
         </dbn:select>
     </flow>
-
 
 </mule>

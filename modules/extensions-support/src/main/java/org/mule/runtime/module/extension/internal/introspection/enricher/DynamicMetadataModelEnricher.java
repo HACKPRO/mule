@@ -175,21 +175,22 @@ public class DynamicMetadataModelEnricher extends AbstractAnnotatedModelEnricher
     component.setType(component.getType(), true);
   }
 
-  private void declareComponentMetadataKeyId(ComponentDeclaration<? extends ComponentDeclaration> component, BaseDeclaration operation) {
+  private void declareComponentMetadataKeyId(ComponentDeclaration<? extends ComponentDeclaration> component,
+                                             BaseDeclaration operation) {
 
     Optional<MetadataType> keyId = component.getParameters().stream()
-      .filter(p -> getAnnotatedElement(p).map(element -> element.isAnnotationPresent(MetadataKeyId.class)).orElse(false))
-      .map(ParameterDeclaration::getType)
-      .findFirst();
-
-    if (!keyId.isPresent() && component.getModelProperty(ParameterGroupModelProperty.class).isPresent()){
-      keyId = component.getModelProperty(ParameterGroupModelProperty.class).get().getGroups().stream()
-        .filter(g -> g.getContainer().isAnnotationPresent(MetadataKeyId.class))
-        .map(g -> typeLoader.load(g.getType()))
+        .filter(p -> getAnnotatedElement(p).map(element -> element.isAnnotationPresent(MetadataKeyId.class)).orElse(false))
+        .map(ParameterDeclaration::getType)
         .findFirst();
+
+    if (!keyId.isPresent() && component.getModelProperty(ParameterGroupModelProperty.class).isPresent()) {
+      keyId = component.getModelProperty(ParameterGroupModelProperty.class).get().getGroups().stream()
+          .filter(g -> g.getContainer().isAnnotationPresent(MetadataKeyId.class))
+          .map(g -> typeLoader.load(g.getType()))
+          .findFirst();
     }
 
-    if (keyId.isPresent()){
+    if (keyId.isPresent()) {
       operation.addModelProperty(new MetadataKeyIdModelProperty(keyId.get()));
     }
   }

@@ -178,7 +178,7 @@ public class MetadataMediator {
 
     if (!contentDescriptor.isPresent()) {
       return outputResult.isSuccess() ? success(componentDescriptorBuilder.build())
-                                      : failure(componentDescriptorBuilder.build(), outputResult);
+          : failure(componentDescriptorBuilder.build(), outputResult);
     }
 
     MetadataResult<ParameterMetadataDescriptor> contentResult = contentDescriptor.get();
@@ -379,11 +379,11 @@ public class MetadataMediator {
     try {
       MetadataType dynamicType = delegate.resolve();
       // TODO review this once MULE-10438 and MDM-21 are done
-      if (isNullType(staticType) || dynamicType == null){
+      if (isNullType(staticType) || dynamicType == null) {
         return success(staticType);
       }
 
-      if (isNullType(dynamicType) && !allowsNullType){
+      if (isNullType(dynamicType) && !allowsNullType) {
         return failure(staticType, format("An error occurred while resolving the MetadataType of the [%s]", elementName),
                        NO_DYNAMIC_TYPE_AVAILABLE,
                        "The resulting MetadataType was of NullType, but it is not a valid type for this element");
@@ -459,7 +459,8 @@ public class MetadataMediator {
     List<MetadataResult<?>> failedResults = Stream.of(results).filter(result -> !result.isSuccess()).collect(toList());
     String messages = failedResults.stream().map(f -> f.getFailure().get().getMessage()).collect(joining(" and "));
     String stackTrace = failedResults.size() == 1 ? failedResults.get(0).getFailure().get().getReason() : "";
-    FailureCode failureCode = failedResults.size() == 1 ? failedResults.get(0).getFailure().get().getFailureCode() : FailureCode.MULTIPLE;
+    FailureCode failureCode =
+        failedResults.size() == 1 ? failedResults.get(0).getFailure().get().getFailureCode() : FailureCode.MULTIPLE;
     return failure(descriptor, messages, failureCode, stackTrace);
   }
 }

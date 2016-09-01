@@ -14,7 +14,7 @@
 
     <flow name="insertDynamic">
         <dbn:insert>
-            <dbn:sql>INSERT INTO PLANET(POSITION, NAME) VALUES (777, '#[payload]')</dbn:sql>
+            <dbn:sql>INSERT INTO PLANET(POSITION, NAME) VALUES (777, #[payload])</dbn:sql>
         </dbn:insert>
     </flow>
 

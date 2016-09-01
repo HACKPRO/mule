@@ -30,9 +30,9 @@ import java.util.Optional;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class SelectInputMetadataTestCase extends AbstractDbIntegrationTestCase {
+public class SelectMetadataInputTestCase extends AbstractDbIntegrationTestCase {
 
-  public SelectInputMetadataTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
+  public SelectMetadataInputTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
     super(dataSourceConfigResource, testDatabase);
   }
 
@@ -43,12 +43,12 @@ public class SelectInputMetadataTestCase extends AbstractDbIntegrationTestCase {
 
   @Override
   protected String[] getFlowConfigurationResources() {
-    return new String[] {"integration/select/pending/select/select-input-metadata-config.xml"};
+    return new String[] {"integration/select/select-metadata-config.xml"};
   }
 
   @Test
   public void returnsNullSelectMetadataUnParameterizedQuery() throws Exception {
-    MetadataResult<ComponentMetadataDescriptor> metadata = getComponentMetadata("selectMetadata", "select * from PLANET");
+    MetadataResult<ComponentMetadataDescriptor> metadata = getMetadata("selectMetadata", "select * from PLANET");
 
     assertThat(metadata.isSuccess(), is(true));
     assertThat(metadata.get().getContentMetadata().isPresent(), is(true));
@@ -60,7 +60,8 @@ public class SelectInputMetadataTestCase extends AbstractDbIntegrationTestCase {
   public void returnsAnySelectInputMetadataFromNotSupportedParameterizedQuery() throws Exception {
 
     MetadataResult<ComponentMetadataDescriptor> metadata =
-      getComponentMetadata("selectMetadata", "select * from PLANET where id = #[payload.id] and name = #[message.outboundProperties.updateCount]");
+        getMetadata("selectMetadata",
+                    "select * from PLANET where id = #[payload.id] and name = #[message.outboundProperties.updateCount]");
 
     assertThat(metadata.isSuccess(), is(true));
     assertThat(metadata.get().getContentMetadata().isPresent(), is(true));
@@ -70,8 +71,8 @@ public class SelectInputMetadataTestCase extends AbstractDbIntegrationTestCase {
 
   @Test
   public void returnsSelectInputMetadataFromBeanParameterizedQuery() throws Exception {
-    MetadataResult<ComponentMetadataDescriptor> metadata = getComponentMetadata("selectMetadata",
-                                                                                "select * from PLANET where id = :id and name = :name");
+    MetadataResult<ComponentMetadataDescriptor> metadata = getMetadata("selectMetadata",
+                                                                       "select * from PLANET where id = :id and name = :name");
 
     assertThat(metadata.isSuccess(), is(true));
     assertThat(metadata.get().getContentMetadata().isPresent(), is(true));
@@ -82,11 +83,11 @@ public class SelectInputMetadataTestCase extends AbstractDbIntegrationTestCase {
 
     Optional<ObjectFieldType> id = type.getFieldByName("id");
     assertThat(id.isPresent(), is(true));
-    assertThat(id.get().getValue(), equalTo(testDatabase.getIdFieldInputMetaDataType()));
+    assertThat(id.get().getValue(), equalTo(testDatabase.getIdFieldMetaDataType()));
 
     Optional<ObjectFieldType> name = type.getFieldByName("name");
     assertThat(name.isPresent(), is(true));
-    assertThat(name.get().getValue(), equalTo(typeBuilder.stringType().build()));
+    assertThat(name.get().getValue(), equalTo(testDatabase.getNameFielMetaDataType()));
   }
 
 }

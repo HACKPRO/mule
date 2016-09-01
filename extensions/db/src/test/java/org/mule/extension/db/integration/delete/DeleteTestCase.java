@@ -6,6 +6,7 @@
  */
 package org.mule.extension.db.integration.delete;
 
+import static java.lang.String.format;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mule.extension.db.integration.TestDbConfig.getResources;
@@ -37,17 +38,17 @@ public class DeleteTestCase extends AbstractDbIntegrationTestCase {
 
   @Test
   public void deleteDynamic() throws Exception {
-    doDelete("deleteDynamic");
+    doDelete("deleteDynamic", format("'%s'", VENUS.getName()));
   }
 
   @Test
   public void deleteParemeterized() throws Exception {
-    doDelete("deleteParameterized");
+    doDelete("deleteParameterized", VENUS.getName());
   }
 
-  private void doDelete(String flowName) throws Exception {
-    MuleMessage response = flowRunner(flowName).withPayload(VENUS.getName()).run().getMessage();
+  private void doDelete(String flowName, String payload) throws Exception {
+    MuleMessage response = flowRunner(flowName).withPayload(payload).run().getMessage();
     assertThat(response.getPayload(), is(1));
-    assertDeletedPlanetRecords(VENUS.getName());
+    assertDeletedPlanetRecords(payload);
   }
 }

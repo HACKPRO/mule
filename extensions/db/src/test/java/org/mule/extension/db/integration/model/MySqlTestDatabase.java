@@ -119,7 +119,7 @@ public class MySqlTestDatabase extends AbstractTestDatabase {
   }
 
   @Override
-  public MetadataType getIdFieldInputMetaDataType() {
+  public MetadataType getIdFieldMetaDataType() {
     return BaseTypeBuilder.create(MetadataFormat.JAVA).stringType().build();
   }
 }

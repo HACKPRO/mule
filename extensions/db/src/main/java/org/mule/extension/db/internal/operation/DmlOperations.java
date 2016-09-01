@@ -23,6 +23,7 @@ import org.mule.extension.db.internal.DbConnector;
 import org.mule.extension.db.internal.domain.connection.DbConnection;
 import org.mule.extension.db.internal.domain.executor.SelectExecutor;
 import org.mule.extension.db.internal.domain.executor.StoredProcedureExecutor;
+import org.mule.extension.db.internal.domain.metadata.DefaultDbMetadataResolver;
 import org.mule.extension.db.internal.domain.metadata.SelectMetadataResolver;
 import org.mule.extension.db.internal.domain.metadata.StoredProcedureMetadataResolver;
 import org.mule.extension.db.internal.domain.query.Query;
@@ -57,6 +58,7 @@ import javax.inject.Inject;
  *
  * @since 4.0
  */
+@MetadataScope(contentResolver = DefaultDbMetadataResolver.class)
 public class DmlOperations extends BaseDbOperations {
 
   @Inject
@@ -146,9 +148,7 @@ public class DmlOperations extends BaseDbOperations {
    * @return the number of affected rows
    * @throws SQLException if an error is produced
    */
-  public int delete(@ParameterGroup QueryDefinition query,
-                    @UseConfig DbConnector connector,
-                    @Connection DbConnection connection)
+  public int delete(@ParameterGroup QueryDefinition query, @UseConfig DbConnector connector, @Connection DbConnection connection)
       throws SQLException {
 
     final Query resolvedQuery = resolveQuery(query, connector, connection, DELETE);

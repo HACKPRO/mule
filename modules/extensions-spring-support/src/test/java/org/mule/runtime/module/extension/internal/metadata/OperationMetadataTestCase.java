@@ -206,7 +206,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
     assertExpectedOutput(metadataDescriptor.getOutputMetadata(), personType, void.class);
 
     assertThat(metadataDescriptor.getContentMetadata().isPresent(), is(true));
-    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", typeBuilder.nullType().build());
+    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", Object.class);
 
     assertThat(metadataDescriptor.getParametersMetadata(), is(empty()));
   }
@@ -335,7 +335,7 @@ public class OperationMetadataTestCase extends MetadataExtensionFunctionalTestCa
     assertExpectedType(metadataDescriptor.getParametersMetadata().get(0), "type", String.class);
 
     assertThat(metadataDescriptor.getContentMetadata().isPresent(), is(true));
-    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", typeBuilder.nullType().build());
+    assertExpectedType(metadataDescriptor.getContentMetadata().get(), "content", Object.class);
   }
 
   @Test

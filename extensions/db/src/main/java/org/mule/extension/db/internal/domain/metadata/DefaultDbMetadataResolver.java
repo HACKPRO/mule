@@ -6,7 +6,6 @@
  */
 package org.mule.extension.db.internal.domain.metadata;
 
-import static java.lang.Character.isJavaIdentifierPart;
 import static org.mule.metadata.api.model.MetadataFormat.JAVA;
 import org.mule.extension.db.internal.domain.connection.DbConnection;
 import org.mule.extension.db.internal.domain.param.InputQueryParam;
@@ -75,37 +74,6 @@ public class DefaultDbMetadataResolver implements MetadataContentResolver<String
     } catch (SQLException e) {
       return getStaticInputMetadata(fieldNames);
     }
-  }
-
-  private boolean isValidIdentifier(String value) {
-    return !value.chars().anyMatch(c -> !isJavaIdentifierPart(c));
-  }
-
-  private String getReferencedField(InputQueryParam inputParam) {
-    if (inputParam.getValue() == null || !(inputParam.getValue() instanceof String)) {
-      return null;
-    }
-    String value = (String) inputParam.getValue();
-
-    if (value.startsWith("#[") && value.endsWith("]")) {
-      value = value.substring(2, value.length() - 1);
-
-      if (value.startsWith("payload.")) {
-        value = value.substring(8);
-        if (isValidIdentifier(value)) {
-          return value;
-        }
-      } else if ((value.startsWith("payload['") && value.endsWith("']"))
-        || (value.startsWith("payload[\"") && value.endsWith("\"]"))) {
-        value = value.substring(9, value.length() - 2);
-        if (isValidIdentifier(value)) {
-          return value;
-        }
-      }
-
-    }
-
-    return null;
   }
 
   protected QueryTemplate parseQuery(String query) {

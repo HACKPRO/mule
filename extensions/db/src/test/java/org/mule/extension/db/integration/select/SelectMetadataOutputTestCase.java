@@ -15,8 +15,6 @@ import org.mule.extension.db.integration.AbstractDbIntegrationTestCase;
 import org.mule.extension.db.integration.TestDbConfig;
 import org.mule.extension.db.integration.model.AbstractTestDatabase;
 import org.mule.metadata.api.model.ArrayType;
-import org.mule.metadata.api.model.MetadataType;
-import org.mule.metadata.api.model.ObjectFieldType;
 import org.mule.metadata.api.model.ObjectType;
 import org.mule.runtime.api.metadata.descriptor.ComponentMetadataDescriptor;
 import org.mule.runtime.api.metadata.resolving.FailureCode;
@@ -30,9 +28,9 @@ import java.util.Optional;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
+public class SelectMetadataOutputTestCase extends AbstractDbIntegrationTestCase {
 
-  public SelectMetadataTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
+  public SelectMetadataOutputTestCase(String dataSourceConfigResource, AbstractTestDatabase testDatabase) {
     super(dataSourceConfigResource, testDatabase);
   }
 
@@ -43,7 +41,7 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
 
   @Override
   protected String[] getFlowConfigurationResources() {
-    return new String[] {"integration/select/pending/select/select-output-metadata-config.xml"};
+    return new String[] {"integration/select/select-metadata-config.xml"};
   }
 
   @Test
@@ -51,8 +49,8 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
     ObjectType record = getSelectOutputMetadata("select * from PLANET");
 
     assertThat(record.getFields().size(), equalTo(3));
-    assertFieldOfType(record, "ID", testDatabase.getIdFieldOutputMetaDataType());
-    assertFieldOfType(record, "POSITION", testDatabase.getPositionFieldOutputMetaDataType());
+    assertFieldOfType(record, "ID", testDatabase.getIdFieldMetaDataType());
+    assertFieldOfType(record, "POSITION", testDatabase.getPositionFielMetaDataType());
     assertFieldOfType(record, "NAME", typeBuilder.stringType().build());
   }
 
@@ -61,8 +59,8 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
     ObjectType record = getSelectOutputMetadata("select ID, POSITION from PLANET");
 
     assertThat(record.getFields().size(), equalTo(2));
-    assertFieldOfType(record, "ID", testDatabase.getIdFieldOutputMetaDataType());
-    assertFieldOfType(record, "POSITION", testDatabase.getPositionFieldOutputMetaDataType());
+    assertFieldOfType(record, "ID", testDatabase.getIdFieldMetaDataType());
+    assertFieldOfType(record, "POSITION", testDatabase.getPositionFielMetaDataType());
   }
 
   @Test
@@ -76,8 +74,7 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
 
   @Test
   public void selectInvalidJoin() throws Exception {
-    MetadataResult<ComponentMetadataDescriptor> metadata =
-        getComponentMetadata("selectMetadata", "select NAME, NAME from PLANET");
+    MetadataResult<ComponentMetadataDescriptor> metadata = getMetadata("selectMetadata", "select NAME, NAME from PLANET");
 
     assertThat(metadata.isSuccess(), is(false));
     assertThat(metadata.get().getOutputMetadata().isSuccess(), is(false));
@@ -88,7 +85,7 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
   }
 
   private ObjectType getSelectOutputMetadata(String query) throws RegistrationException {
-    MetadataResult<ComponentMetadataDescriptor> metadata = getComponentMetadata("selectMetadata", query);
+    MetadataResult<ComponentMetadataDescriptor> metadata = getMetadata("selectMetadata", query);
 
     assertThat(metadata.isSuccess(), is(true));
     assertThat(metadata.get().getOutputMetadata().isSuccess(), is(true));
@@ -97,9 +94,4 @@ public class SelectMetadataTestCase extends AbstractDbIntegrationTestCase {
     return (ObjectType) output.getType();
   }
 
-  private void assertFieldOfType(ObjectType record, String name, MetadataType type) {
-    Optional<ObjectFieldType> field = record.getFieldByName(name);
-    assertThat(field.isPresent(), is(true));
-    assertThat(field.get().getValue(), equalTo(type));
-  }
 }

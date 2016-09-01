@@ -346,16 +346,16 @@ public abstract class AbstractTestDatabase {
     throw new UnsupportedOperationException(NO_UDT_SUPPORT_ERROR);
   }
 
-  public MetadataType getIdFieldInputMetaDataType() {
+  public MetadataType getIdFieldMetaDataType() {
     return typeBuilder.numberType().build();
   }
 
-  public MetadataType getIdFieldOutputMetaDataType() {
+  public MetadataType getPositionFielMetaDataType() {
     return typeBuilder.numberType().build();
   }
 
-  public MetadataType getPositionFieldOutputMetaDataType() {
-    return typeBuilder.numberType().build();
+  public MetadataType getNameFielMetaDataType() {
+    return typeBuilder.stringType().build();
   }
 
   public Class getIdFieldJavaClass() {

@@ -92,6 +92,7 @@ public final class ConfigurationProviderMetadataAdapter extends StaticConfigurat
                                       connectionManager,
                                       metadataManager.getMetadataCache(getName()),
                                       ExtensionsTypeLoaderFactory.getDefault().createTypeLoader(
-                                        getClassLoader(getModel().getExtensionModel())));
+                                                                                                getClassLoader(getModel()
+                                                                                                    .getExtensionModel())));
   }
 }

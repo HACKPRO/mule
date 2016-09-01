@@ -34,20 +34,21 @@ public class StoreProcedureOutputMetadataTestCase extends AbstractDbIntegrationT
 
   @Override
   protected String[] getFlowConfigurationResources() {
-    return new String[] {"integration/storedprocedure/pending/stored-procedure-metadata-config.xml"};
+    return new String[] {"integration/storedprocedure/stored-procedure-metadata-config.xml"};
   }
 
   @Test
   public void updateMetadata() throws Exception {
     MetadataResult<ComponentMetadataDescriptor> metadata =
-        getComponentMetadata("storedProcedureMetadata", "{ call getTestRecords() }");
+        getMetadata("storedProcedureMetadata", "{ call getTestRecords() }");
 
     assertThat(metadata.isSuccess(), is(true));
     assertThat(metadata.get().getOutputMetadata().isSuccess(), is(true));
     MetadataResult<TypeMetadataDescriptor> output = metadata.get().getOutputMetadata().get().getPayloadMetadata();
     assertThat(output.isSuccess(), is(true));
 
-    assertThat(output.get(),
-               is(typeBuilder.dictionaryType().ofKey(typeBuilder.stringType()).ofValue(typeBuilder.anyType()).build()));
+    assertThat(output.get(), is(typeBuilder.dictionaryType()
+        .ofKey(typeBuilder.stringType())
+        .ofValue(typeBuilder.anyType()).build()));
   }
 }
