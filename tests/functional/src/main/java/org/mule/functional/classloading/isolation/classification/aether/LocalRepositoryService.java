@@ -197,7 +197,7 @@ public class LocalRepositoryService {
    */
   public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
     checkNotNull(root, "root cannot be null");
-    return resolveDependencies(root, Collections.<Dependency>emptyList(), dependencyFilter);
+    return resolveDependencies(root, Collections.<Dependency>emptyList(), Collections.<Dependency>emptyList(), dependencyFilter);
   }
 
   /**
@@ -209,17 +209,20 @@ public class LocalRepositoryService {
    * If the resolution of dependencies fail it will continue with the resolved ones and log a warning message to allow
    * troubleshooting.
    *
-   * @param root {@link Dependency} node from to collect its dependencies
-   * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
+   * @param root {@link Dependency} node from to collect its dependencies, may be {@code null}
+   * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies, may be {@code null}
+   * @param managedDependencies {@link List} of managed {@link Dependency}s to be used for resolving the depedency graph, may be {@code null}
    * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
    *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
+                                        List<Dependency> managedDependencies,
                                         DependencyFilter dependencyFilter) {
     CollectRequest collectRequest = new CollectRequest();
     collectRequest.setRoot(root);
     collectRequest.setDependencies(directDependencies);
+    collectRequest.setManagedDependencies(managedDependencies);
     collectRequest.setRepositories(Collections.<RemoteRepository>emptyList());
 
     DependencyNode node;

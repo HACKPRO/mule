@@ -42,6 +42,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -54,6 +55,7 @@ import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.resolution.ArtifactDescriptorResult;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,6 +156,10 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                     List<Dependency> directDependencies,
                                                     LocalRepositoryService localRepositoryService,
                                                     List<PluginUrlClassification> pluginUrlClassifications) {
+    //TODO (should be configured)
+    Artifact muleArtifact = new DefaultArtifact("org.mule", "mule", "pom", "4.0-SNAPSHOT");
+    ArtifactDescriptorResult muleArtirfactDescriptorResult = localRepositoryService.readArtifactDescriptor(muleArtifact);
+
     directDependencies = directDependencies.stream()
         .filter(directDep -> directDep.getScope().equals(PROVIDED))
         .map(depToTransform -> depToTransform.setScope(COMPILE)).collect(toList());
@@ -180,7 +186,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
 
     List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(null, directDependencies,
+        .resolveDependencies(null, directDependencies, muleArtirfactDescriptorResult.getManagedDependencies(),
                              orFilter(new org.eclipse.aether.util.filter.PatternInclusionsDependencyFilter(context
                                  .getProvidedInclusions()), new PatternExclusionsDependencyFilter(excludedFilterPattern))));
 
@@ -503,7 +509,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       logger.debug("Resolving dependency graph for '{}' scope direct dependencies: {}", TEST, directDependencies);
     }
     applicationFiles
-        .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST), directDependencies,
+        .addAll(localRepositoryService.resolveDependencies(new Dependency(rootArtifact, TEST),
+                                                           directDependencies,
+                                                           Collections.<Dependency>emptyList(),
                                                            orFilter(dependencyFilter,
                                                                     new PatternExclusionsDependencyFilter(exclusionsPatterns))));
 
