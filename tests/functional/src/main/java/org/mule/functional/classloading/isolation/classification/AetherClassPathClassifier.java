@@ -7,6 +7,8 @@
 
 package org.mule.functional.classloading.isolation.classification;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Sets.newHashSet;
 import static java.io.File.separator;
 import static java.util.stream.Collectors.toList;
 import static org.eclipse.aether.util.artifact.ArtifactIdUtils.toId;
@@ -33,7 +35,6 @@ import org.mule.runtime.module.extension.internal.introspection.version.StaticVe
 import org.mule.runtime.module.extension.internal.manager.DefaultExtensionManager;
 import org.mule.runtime.module.extension.internal.manager.ExtensionManagerAdapter;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import java.io.File;
@@ -48,6 +49,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.maven.model.Model;
@@ -55,7 +57,6 @@ import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
-import org.eclipse.aether.resolution.ArtifactDescriptorResult;
 import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,8 +89,8 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   public static final String MAVEN_COORDINATES_SEPARATOR = ":";
   public static final String JAR_EXTENSION = "jar";
   public static final String SNAPSHOT_WILCARD_FILE_FILTER = "*-SNAPSHOT*.*";
-  private static final String GENERATED_TEST_RESOURCES = "generated-test-resources";
   public static final String MULE_EXTENSION = "mule-extension";
+  private static final String GENERATED_TEST_RESOURCES = "generated-test-resources";
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   /**
@@ -146,6 +147,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * dependencies of the rootArtifact. Is uses the exclusions defined in
    * {@link ClassPathClassifierContext#getProvidedExclusions()} to filter the dependency graph plus
    * {@value #ALL_TESTS_JAR_ARTIFACT_COORDS} and {@link ClassPathClassifierContext#getExcludedArtifacts()}.
+   * <p/>
+   * In order to resolve correctly the {@value org.eclipse.aether.util.artifact.JavaScopes#PROVIDED} direct dependencies it will
+   * get for each one the manage dependencies and use that list to resolve the graph.
    *
    * @param context {@link ClassPathClassifierContext} with settings for the classification process
    * @param localRepositoryService {@link LocalRepositoryService} to resolve Maven dependencies
@@ -156,19 +160,28 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                     List<Dependency> directDependencies,
                                                     LocalRepositoryService localRepositoryService,
                                                     List<PluginUrlClassification> pluginUrlClassifications) {
-    //TODO (should be configured)
-    Artifact muleArtifact = new DefaultArtifact("org.mule", "mule", "pom", "4.0-SNAPSHOT");
-    ArtifactDescriptorResult muleArtirfactDescriptorResult = localRepositoryService.readArtifactDescriptor(muleArtifact);
-
     directDependencies = directDependencies.stream()
         .filter(directDep -> directDep.getScope().equals(PROVIDED))
         .map(depToTransform -> depToTransform.setScope(COMPILE)).collect(toList());
 
     if (logger.isDebugEnabled()) {
-      logger.debug("Selected direct dependencies to be used for resolving container dependency graph: {}", directDependencies);
+      logger.debug(
+                   "Selected direct dependencies to be used for resolving container dependency graph (changed to compile in order to resolve the graph): {}",
+                   directDependencies);
     }
 
-    List<String> excludedFilterPattern = Lists.newArrayList(context.getProvidedExclusions());
+    Set<Dependency> managedDependencies = directDependencies.stream()
+        .map(directDep -> localRepositoryService.readArtifactDescriptor(directDep.getArtifact()).getManagedDependencies())
+        .flatMap(l -> l.stream()).collect(
+                                          Collectors.toSet());
+
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+                   "Collected managed dependencies from direct provided dependencies to be used for resolving container dependency graph: {}",
+                   managedDependencies);
+    }
+
+    List<String> excludedFilterPattern = newArrayList(context.getProvidedExclusions());
     excludedFilterPattern.add(ALL_TESTS_JAR_ARTIFACT_COORDS);
     excludedFilterPattern.addAll(context.getExcludedArtifacts());
     if (!pluginUrlClassifications.isEmpty()) {
@@ -186,9 +199,10 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     }
 
     List<URL> containerUrls = toUrl(localRepositoryService
-        .resolveDependencies(null, directDependencies, muleArtirfactDescriptorResult.getManagedDependencies(),
+        .resolveDependencies(null, directDependencies, newArrayList(managedDependencies),
                              orFilter(new org.eclipse.aether.util.filter.PatternInclusionsDependencyFilter(context
-                                 .getProvidedInclusions()), new PatternExclusionsDependencyFilter(excludedFilterPattern))));
+                                 .getProvidedInclusions()),
+                                      new PatternExclusionsDependencyFilter(excludedFilterPattern))));
 
     containerUrls = containerUrls.stream().filter(url -> !url.getFile().endsWith(POM_XML)).collect(toList());
 
@@ -219,7 +233,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
                                                                       Artifact rootArtifact,
                                                                       List<Dependency> directDependencies,
                                                                       LocalRepositoryService localRepositoryService) {
-    List<PluginUrlClassification> pluginUrlClassifications = Lists.newArrayList();
+    List<PluginUrlClassification> pluginUrlClassifications = newArrayList();
     File baseResourcesFolder = getGeneratedResourcesBase(context.getRootArtifactTestClassesFolder());
 
     ExtensionsTestInfrastructureDiscoverer extensionsInfrastructure =
@@ -266,9 +280,9 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   /**
-   * Classifies a plugin {@link Artifact}. {@value org.eclipse.aether.util.artifact.JavaScopes#COMPILE} dependencies will be resolved
-   * for building the {@link URL}'s for the class loader.
-   * For {@link Extension} annotated classes it will also generate its metadata.
+   * Classifies a plugin {@link Artifact}. {@value org.eclipse.aether.util.artifact.JavaScopes#COMPILE} dependencies will be
+   * resolved for building the {@link URL}'s for the class loader. For {@link Extension} annotated classes it will also generate
+   * its metadata.
    *
    * @param pluginArtifact {@link Artifact} that represents the plugin to be classified
    * @param context {@link ClassPathClassifierContext} with settings for the classification process
@@ -292,12 +306,12 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
         buildExtensionPluginMetadata(baseResourcesFolder, extensionsInfrastructure, pluginArtifact, urls);
 
     if (generatedTestResources != null) {
-      List<URL> appendedTestResources = Lists.newArrayList(generatedTestResources);
+      List<URL> appendedTestResources = newArrayList(generatedTestResources);
       appendedTestResources.addAll(urls);
       urls = appendedTestResources;
     }
     // TODO (gfernandes): How could I check if exported classes belong to this plugin?
-    return new PluginUrlClassification(toId(pluginArtifact), urls, Lists.newArrayList(context.getExportPluginClasses()));
+    return new PluginUrlClassification(toId(pluginArtifact), urls, newArrayList(context.getExportPluginClasses()));
   }
 
   /**
@@ -450,7 +464,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
     if (logger.isDebugEnabled()) {
       logger.debug("Building application classification");
     }
-    List<File> applicationFiles = Lists.newArrayList(context.getRootArtifactTestClassesFolder());
+    List<File> applicationFiles = newArrayList(context.getRootArtifactTestClassesFolder());
 
     if (logger.isDebugEnabled()) {
       logger.debug("Setting filter for dependency graph to include: '{}'", ALL_TESTS_JAR_ARTIFACT_COORDS);
@@ -465,7 +479,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
               && plugin.getArtifactId().equals(rootArtifact.getArtifactId());
         }).findFirst().isPresent();
 
-    List<String> exclusionsPatterns = Lists.newArrayList();
+    Set<String> exclusionsPatterns = newHashSet();
 
     if (!isRootArtifactPlugin && context.getRootArtifactClassesFolder().exists()) {
       if (logger.isDebugEnabled()) {
@@ -525,7 +539,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
    * @return {@link List} of {@link URL}s for the files
    */
   private List<URL> toUrl(Collection<File> files) {
-    List<URL> urls = Lists.newArrayList();
+    List<URL> urls = newArrayList();
     for (File file : files) {
       urls.add(toUrl(file));
     }
@@ -547,8 +561,8 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
   }
 
   /**
-   * Creates the {@value #GENERATED_TEST_RESOURCES} inside the target folder to put metadata files for extensions. If no exists, it
-   * will create it.
+   * Creates the {@value #GENERATED_TEST_RESOURCES} inside the target folder to put metadata files for extensions. If no exists,
+   * it will create it.
    *
    * @return {@link File} baseResourcesFolder to write extensions metadata.
    */
@@ -630,7 +644,7 @@ public class AetherClassPathClassifier implements ClassPathClassifier {
       if (classpathFolders.containsKey(folder)) {
         classpathFolders.get(folder).add(url);
       } else {
-        classpathFolders.put(folder, Lists.newArrayList(url));
+        classpathFolders.put(folder, newArrayList(url));
       }
     });
     return classpathFolders;
