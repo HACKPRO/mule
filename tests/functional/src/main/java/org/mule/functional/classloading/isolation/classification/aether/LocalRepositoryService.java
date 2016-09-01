@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.DependencyCollectionException;
@@ -57,8 +58,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Provides Maven artifacts resolutions base on {@link RepositorySystem} from Eclipse Aether.
  * <p/>
- * Dependencies are resolved using the Maven local repository. It works
- * in {@code offline} so any missing {@link Artifact} while resolving the dependency graph will be logged and informed the path to these unresolved artifacts.
+ * Dependencies are resolved using the Maven local repository. It works in {@code offline} so any missing {@link Artifact} while
+ * resolving the dependency graph will be logged and informed the path to these unresolved artifacts.
  * <p/>
  * It is assumed that before this is used either Maven triggered the build (and resolved any dependency missing) or JUnit through
  * the IDE (which in that case references to Maven artifacts were already resolved).
@@ -75,7 +76,7 @@ public class LocalRepositoryService {
 
   protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-  private final DefaultRepositorySystemSession session;
+  private final RepositorySystemSession session;
   private final RepositorySystem system;
   private String userHome = System.getProperty(USER_HOME);
 
@@ -83,26 +84,30 @@ public class LocalRepositoryService {
    * Creates an instance of the {@link LocalRepositoryService} to collect Maven dependencies.
    *
    * @param classPath {@link URL}'s from class path
-   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace. Not {@code null}.
+   * @param workspaceLocationResolver {@link WorkspaceLocationResolver} to resolve artifactId's {@link Path}s from workspace. Not
+   *        {@code null}.
    */
   public LocalRepositoryService(List<URL> classPath, WorkspaceLocationResolver workspaceLocationResolver) {
-    session = newSession();
-    session.setOffline(true);
+    DefaultRepositorySystemSession defaultRepositorySystemSession = newSession();
+    defaultRepositorySystemSession.setOffline(true);
 
-    session.setUpdatePolicy(UPDATE_POLICY_NEVER);
-    session.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
+    defaultRepositorySystemSession.setUpdatePolicy(UPDATE_POLICY_NEVER);
+    defaultRepositorySystemSession.setChecksumPolicy(CHECKSUM_POLICY_IGNORE);
 
-    session.setIgnoreArtifactDescriptorRepositories(true);
+    defaultRepositorySystemSession.setIgnoreArtifactDescriptorRepositories(true);
 
     system = newRepositorySystem();
 
     LocalRepository localRepo = createMavenLocalRepository();
-    session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-    session.setWorkspaceReader(new DefaultWorkspaceReader(classPath, workspaceLocationResolver));
+    defaultRepositorySystemSession
+        .setLocalRepositoryManager(system.newLocalRepositoryManager(defaultRepositorySystemSession, localRepo));
+    defaultRepositorySystemSession.setWorkspaceReader(new DefaultWorkspaceReader(classPath, workspaceLocationResolver));
 
     if (valueOf(getProperty(MULE_LOG_VERBOSE_CLASSLOADING))) {
-      session.setRepositoryListener(new LoggerRepositoryListener());
+      defaultRepositorySystemSession.setRepositoryListener(new LoggerRepositoryListener());
     }
+
+    session = defaultRepositorySystemSession;
   }
 
   /**
@@ -156,7 +161,7 @@ public class LocalRepositoryService {
    *
    * @param artifact the artifact requested, must not be {@code null}
    * @return The resolution result, never {@code null}.
-   * @throws IllegalStateException If the artifact could not be resolved.
+   * @throws {@link IllegalStateException} If the artifact could not be resolved.
    */
   public ArtifactResult resolveArtifact(Artifact artifact) {
     try {
@@ -185,9 +190,9 @@ public class LocalRepositoryService {
   /**
    * Resolves transitive dependencies for the dependency as root node using the filter.
    *
-   * @param root             {@link Dependency} node from to collect its dependencies
+   * @param root {@link Dependency} node from to collect its dependencies
    * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
-   *                         May be {@code null} to no filter
+   *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency root, DependencyFilter dependencyFilter) {
@@ -204,10 +209,10 @@ public class LocalRepositoryService {
    * If the resolution of dependencies fail it will continue with the resolved ones and log a warning message to allow
    * troubleshooting.
    *
-   * @param root               {@link Dependency} node from to collect its dependencies
+   * @param root {@link Dependency} node from to collect its dependencies
    * @param directDependencies {@link List} of direct {@link Dependency} to collect its transitive dependencies
-   * @param dependencyFilter   {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
-   *                           May be {@code null} to no filter
+   * @param dependencyFilter {@link DependencyFilter} to include/exclude dependency nodes during collection and resolve operation.
+   *        May be {@code null} to no filter
    * @return a {@link List} of {@link File}s for each dependency resolved
    */
   public List<File> resolveDependencies(Dependency root, List<Dependency> directDependencies,
@@ -232,16 +237,14 @@ public class LocalRepositoryService {
       throw new RuntimeException("Error while collecting dependencies", e);
     } catch (DependencyResolutionException e) {
       logger.warn(
-                  "Dependencies couldn't be resolved for request '{}', {}. " +
-                      "It will continue due to class path is correctly fulfilled by Maven or IDE. " +
-                      "Check this list of artifacts not resolved because it may be the case of a third-party dependency " +
-                      "that is overridden at your artifact Maven dependencies pom (by Maven nearest resolution algorithm). " +
-                      "Meaning that on these artifact it may not be possible to support multiple versions at different class " +
-                      "loader levels due to the one from class path will be used.",
+                  "Dependencies couldn't be resolved for request '{}', {}",
                   collectRequest, e.getMessage());
       node = e.getResult().getRoot();
-
       logUnresolvedArtifacts(node, e);
+      throw new IllegalStateException("Dependencies couldn't be resolved. See logs to understand which dependencies are missed " +
+          "in the dependency graph. In order to resolve the missing artifacts you could either build the module that depends " +
+          " on these artifacts or get them by doing a mvn org.apache.maven.plugins:maven-dependency-plugin:get -Dartifact= -DrepoUrl=",
+                                      e);
     }
 
     List<File> files = getFiles(node);
@@ -267,9 +270,6 @@ public class LocalRepositoryService {
    * @param node root {@link DependencyNode}, can be a "null" root (imaginary root)
    * @param e {@link DependencyResolutionException} the error to collect paths.
    */
-  //TODO: expose this so container classification logic could get this missing artifacts from launcher (classpath)
-  // log how to download manually the artifact:
-  // mvn org.apache.maven.plugins:maven-dependency-plugin:get -Dartifact=org.mule:mule-core:4.0-SNAPSHOT:jar -DrepoUrl=https://repository.mulesoft.org/nexus/content/repositories/public/
   private void logUnresolvedArtifacts(DependencyNode node, DependencyResolutionException e) {
     List<ArtifactResult> artifactResults =
         e.getResult().getArtifactResults().stream().filter(artifactResult -> !artifactResult.getExceptions().isEmpty()).collect(
