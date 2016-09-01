@@ -17,7 +17,6 @@ import static org.mule.runtime.api.metadata.descriptor.builder.MetadataDescripto
 import static org.mule.runtime.api.metadata.resolving.FailureCode.NO_DYNAMIC_TYPE_AVAILABLE;
 import static org.mule.runtime.api.metadata.resolving.MetadataResult.failure;
 import static org.mule.runtime.api.metadata.resolving.MetadataResult.success;
-import static org.mule.runtime.extension.api.dsql.DsqlParser.isDsqlQuery;
 import static org.mule.runtime.module.extension.internal.metadata.PartAwareMetadataKeyBuilder.newKey;
 import static org.mule.runtime.module.extension.internal.util.IntrospectionUtils.getAliasName;
 import static org.mule.runtime.module.extension.internal.util.IntrospectionUtils.getContentParameter;
@@ -60,7 +59,6 @@ import org.mule.runtime.extension.api.introspection.metadata.MetadataResolverFac
 import org.mule.runtime.extension.api.introspection.metadata.NullMetadataKey;
 import org.mule.runtime.extension.api.introspection.parameter.ParameterModel;
 import org.mule.runtime.extension.api.introspection.property.MetadataKeyPartModelProperty;
-import org.mule.runtime.extension.api.introspection.property.QueryModelProperty;
 import org.mule.runtime.extension.api.introspection.property.SubTypesModelProperty;
 import org.mule.runtime.extension.api.util.SubTypesMappingContainer;
 
@@ -155,7 +153,7 @@ public class MetadataMediator {
    * dynamic resolving of the Component parameters, attributes and output.
    * <p>
    * If Component's {@link Content} parameter has a {@link MetadataContentResolver} associated or its Output has a
-   * {@link MetadataOutputResolver} associated that can be used to doTranslate dynamic {@link MetadataType}, then the
+   * {@link MetadataOutputResolver} associated that can be used to resolve dynamic {@link MetadataType}, then the
    * {@link ComponentMetadataDescriptor} will contain those Dynamic types instead of the static type declaration.
    * <p>
    * When neither {@link Content} nor Output have Dynamic types, then invoking this method is the same as invoking
@@ -235,13 +233,13 @@ public class MetadataMediator {
 
   /**
    * Creates a {@link TypeMetadataDescriptor} representing the Component's Content metadata using the
-   * {@link MetadataContentResolver}, if one is available to doTranslate the {@link MetadataType}. If no the Component has no Content
+   * {@link MetadataContentResolver}, if one is available to resolve the {@link MetadataType}. If no the Component has no Content
    * parameter, then {@link Optional#empty()} is returned.
    *
    * @param context current {@link MetadataContext} that will be used by the {@link MetadataContentResolver}
    * @param key     {@link MetadataKey} of the type which's structure has to be resolved
    * @return Success with an {@link Optional} {@link TypeMetadataDescriptor} representing the Component's Content metadata,
-   * resolved using the {@link MetadataContentResolver} if one is available to doTranslate its {@link MetadataType}, returning
+   * resolved using the {@link MetadataContentResolver} if one is available to resolve its {@link MetadataType}, returning
    * {@link Optional#empty()} if no Content parameter is present Failure if the dynamic resolution fails for any reason.
    */
   private Optional<MetadataResult<ParameterMetadataDescriptor>> getContentMetadataDescriptor(MetadataContext context,
@@ -269,12 +267,12 @@ public class MetadataMediator {
 
   /**
    * Creates an {@link OutputMetadataDescriptor} representing the Component's output metadata using the
-   * {@link MetadataOutputResolver}, if one is available to doTranslate the output {@link MetadataType}.
+   * {@link MetadataOutputResolver}, if one is available to resolve the output {@link MetadataType}.
    *
    * @param context current {@link MetadataContext} that will be used by the {@link MetadataContentResolver}
    * @param key     {@link MetadataKey} of the type which's structure has to be resolved
    * @return Success with an {@link OutputMetadataDescriptor} representing the Component's output metadata, resolved using the
-   * {@link MetadataOutputResolver} if one is available to doTranslate its {@link MetadataType}. Failure if the dynamic
+   * {@link MetadataOutputResolver} if one is available to resolve its {@link MetadataType}. Failure if the dynamic
    * resolution fails for any reason.
    */
   private MetadataResult<OutputMetadataDescriptor> getOutputMetadataDescriptor(MetadataContext context, MetadataKey key) {
@@ -335,15 +333,8 @@ public class MetadataMediator {
       return success(subTypesUnion(output.getType(), subTypesMappingContainer));
     }
 
-    MetadataOutputResolver<?> outputResolver;
-    boolean isQuery = metadataKeyParts.stream().anyMatch(p -> p.getModelProperty(QueryModelProperty.class).isPresent());
-    if (isQuery && isDsqlQuery(key.getId())) {
-      outputResolver = new DsqlQueryMetadataResolver(componentModel);
-    } else {
-      outputResolver = resolverFactory.getOutputResolver();
-    }
     return resolveMetadataType(subTypesUnion(output.getType(), subTypesMappingContainer),
-                               () -> outputResolver.getOutputMetadata(context, getKeyId(key)));
+                               () -> resolverFactory.getOutputResolver().getOutputMetadata(context, getKeyId(key)));
   }
 
   /**
@@ -365,7 +356,7 @@ public class MetadataMediator {
   }
 
   /**
-   * Uses the {@link MetadataDelegate} to doTranslate dynamic metadata of the component, executing internally one of the
+   * Uses the {@link MetadataDelegate} to resolve dynamic metadata of the component, executing internally one of the
    * {@link MetadataType} resolving components: {@link MetadataContentResolver#getContentMetadata} or
    * {@link MetadataOutputResolver#getOutputMetadata}
    *

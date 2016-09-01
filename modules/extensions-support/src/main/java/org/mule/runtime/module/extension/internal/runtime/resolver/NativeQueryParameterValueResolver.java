@@ -22,7 +22,7 @@ import org.mule.runtime.extension.api.introspection.dsql.QueryTranslator;
  */
 public final class NativeQueryParameterValueResolver implements ValueResolver<String> {
 
-  private static final DsqlParser PARSER = DsqlParser.getInstance();
+  private static final DsqlParser dsqlParser = DsqlParser.getInstance();
 
   private final String query;
   private final QueryTranslator translator;
@@ -40,7 +40,7 @@ public final class NativeQueryParameterValueResolver implements ValueResolver<St
     if (!isDsqlQuery(query)) {
       return query;
     }
-    DsqlQuery parse = PARSER.parse(query);
+    DsqlQuery parse = dsqlParser.parse(query);
     return parse.translate(translator);
   }
 

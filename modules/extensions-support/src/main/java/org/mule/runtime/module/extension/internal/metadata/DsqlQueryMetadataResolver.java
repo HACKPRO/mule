@@ -19,7 +19,6 @@ import org.mule.runtime.api.metadata.MetadataResolvingException;
 import org.mule.runtime.api.metadata.resolving.MetadataOutputResolver;
 import org.mule.runtime.api.metadata.resolving.QueryEntityResolver;
 import org.mule.runtime.extension.api.dsql.DsqlQuery;
-import org.mule.runtime.extension.api.introspection.RuntimeComponentModel;
 import org.mule.runtime.extension.api.introspection.dsql.Field;
 
 import java.util.List;
@@ -33,12 +32,15 @@ import java.util.List;
  *
  * @since 4.0
  */
-final class DsqlQueryMetadataResolver implements MetadataOutputResolver<DsqlQuery> {
+final class DsqlQueryMetadataResolver implements MetadataOutputResolver {
 
   private final QueryEntityResolver entityResolver;
+  private final MetadataOutputResolver nativeOutputResolver;
 
-  DsqlQueryMetadataResolver(RuntimeComponentModel component) {
-    entityResolver = component.getQueryEntityResolverFactory().getQueryEntityResolver();
+  DsqlQueryMetadataResolver(QueryEntityResolver entityResolver,
+                            MetadataOutputResolver nativeOutputResolver) {
+    this.entityResolver = entityResolver;
+    this.nativeOutputResolver = nativeOutputResolver;
   }
 
   /**
@@ -51,33 +53,39 @@ final class DsqlQueryMetadataResolver implements MetadataOutputResolver<DsqlQuer
    * @param query   the {@link DsqlQuery} to resolve the output metadata from.
    */
   @Override
-  public MetadataType getOutputMetadata(MetadataContext context, DsqlQuery query)
+  public MetadataType getOutputMetadata(MetadataContext context, Object query)
       throws MetadataResolvingException, ConnectionException {
 
-    MetadataType entityMetadata = entityResolver.getEntityMetadata(context, query.getType().getName());
+    if (query instanceof DsqlQuery) {
 
-    BaseTypeBuilder<?> builder = BaseTypeBuilder.create(JAVA);
-    final List<Field> fields = query.getFields();
-    if (fields.size() == 1 && fields.get(0).getName().equals("*")) {
-      return builder.arrayType().of(entityMetadata).build();
-    }
+      DsqlQuery dsqlQuery = (DsqlQuery) query;
+      MetadataType entityMetadata = entityResolver.getEntityMetadata(context, dsqlQuery.getType().getName());
 
-    entityMetadata.accept(new MetadataTypeVisitor() {
-
-      @Override
-      public void visitObject(ObjectType objectType) {
-        ObjectTypeBuilder<?> objectTypeBuilder = builder.arrayType().of().objectType();
-        objectType.getFields()
-            .stream()
-            .filter(p -> fields.stream().anyMatch(f -> f.getName().equalsIgnoreCase(p.getKey().getName().getLocalPart())))
-            .forEach(p -> {
-              ObjectFieldTypeBuilder<?> field = objectTypeBuilder.addField();
-              field.key(p.getKey().getName());
-              field.value(p.getValue());
-            });
+      BaseTypeBuilder<?> builder = BaseTypeBuilder.create(JAVA);
+      final List<Field> fields = dsqlQuery.getFields();
+      if (fields.size() == 1 && fields.get(0).getName().equals("*")) {
+        return builder.arrayType().of(entityMetadata).build();
       }
-    });
 
-    return builder.build();
+      entityMetadata.accept(new MetadataTypeVisitor() {
+
+        @Override
+        public void visitObject(ObjectType objectType) {
+          ObjectTypeBuilder<?> objectTypeBuilder = builder.arrayType().of().objectType();
+          objectType.getFields()
+              .stream()
+              .filter(p -> fields.stream().anyMatch(f -> f.getName().equalsIgnoreCase(p.getKey().getName().getLocalPart())))
+              .forEach(p -> {
+                ObjectFieldTypeBuilder<?> field = objectTypeBuilder.addField();
+                field.key(p.getKey().getName());
+                field.value(p.getValue());
+              });
+        }
+      });
+
+      return builder.build();
+    } else {
+      return nativeOutputResolver.getOutputMetadata(context, query);
+    }
   }
 }

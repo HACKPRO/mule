@@ -259,7 +259,6 @@ public final class DefaultExtensionFactory implements ExtensionFactory {
                                                   declaration.getModelProperties(),
                                                   declaration.getInterceptorFactories(),
                                                   declaration.getExceptionEnricherFactory(),
-                                                  declaration.getEntityResolverFactory(),
                                                   declaration.getMetadataResolverFactory());
       });
     }

@@ -49,7 +49,7 @@ import java.util.Optional;
  */
 final class MetadataKeyIdObjectResolver {
 
-  private static final DsqlParser DSQL_PARSER = DsqlParser.getInstance();
+  private static final DsqlParser dsqlParser = DsqlParser.getInstance();
 
 
   /**
@@ -96,7 +96,7 @@ final class MetadataKeyIdObjectResolver {
         String id = key.getId();
         Optional<QueryModelProperty> query = getQueryModelProperty(componentModel);
         if (query.isPresent() && isDsqlQuery(id)) {
-          DsqlQuery dsqlQuery = DSQL_PARSER.parse(id);
+          DsqlQuery dsqlQuery = dsqlParser.parse(id);
           keyValueHolder.set(dsqlQuery);
         } else {
           keyValueHolder.set(id);

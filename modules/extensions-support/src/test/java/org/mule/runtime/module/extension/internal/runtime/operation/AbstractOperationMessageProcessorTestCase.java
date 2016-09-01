@@ -293,7 +293,7 @@ public abstract class AbstractOperationMessageProcessorTestCase extends Abstract
   public void getMetadataKeys() throws Exception {
     MetadataResult<MetadataKeysContainer> metadataKeysResult = messageProcessor.getMetadataKeys();
 
-    verify(operationModel, times(2)).getMetadataResolverFactory();
+    verify(operationModel, times(3)).getMetadataResolverFactory();
     verify(metadataResolverFactory).getKeyResolver();
 
     assertThat(metadataKeysResult.isSuccess(), is(true));

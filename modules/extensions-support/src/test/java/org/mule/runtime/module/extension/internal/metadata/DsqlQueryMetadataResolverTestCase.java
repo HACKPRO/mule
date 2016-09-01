@@ -12,7 +12,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.when;
 import org.mule.metadata.api.model.ArrayType;
 import org.mule.metadata.api.model.MetadataType;
 import org.mule.metadata.api.model.NumberType;
@@ -21,14 +20,12 @@ import org.mule.metadata.api.model.ObjectType;
 import org.mule.runtime.api.connection.ConnectionException;
 import org.mule.runtime.api.metadata.MetadataContext;
 import org.mule.runtime.api.metadata.MetadataResolvingException;
-import org.mule.runtime.core.internal.metadata.DefaultQueryEntityResolverFactory;
 import org.mule.runtime.extension.api.dsql.DsqlParser;
 import org.mule.runtime.extension.api.dsql.DsqlQuery;
-import org.mule.runtime.extension.api.introspection.RuntimeComponentModel;
+import org.mule.runtime.extension.api.introspection.metadata.NullMetadataResolver;
 import org.mule.tck.size.SmallTest;
 import org.mule.test.metadata.extension.query.MetadataExtensionEntityResolver;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -38,25 +35,15 @@ import org.mockito.runners.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class DsqlQueryMetadataResolverTestCase {
 
-  private static final DsqlParser PARSER = DsqlParser.getInstance();
-
-  @Mock
-  private RuntimeComponentModel componentModel;
+  private static final DsqlParser dsqlParser = DsqlParser.getInstance();
 
   @Mock
   private MetadataContext context;
 
-  @Before
-  public void setup() {
-    DefaultQueryEntityResolverFactory factory = new DefaultQueryEntityResolverFactory(MetadataExtensionEntityResolver.class);
-    when(componentModel.getQueryEntityResolverFactory()).thenReturn(factory);
-  }
-
   @Test
   public void getTrimmedOutputMetadata() throws MetadataResolvingException, ConnectionException {
-    DsqlQuery dsqlQuery = PARSER.parse("dsql:SELECT id FROM Circle WHERE (diameter < 18)");
-    DsqlQueryMetadataResolver resolver = new DsqlQueryMetadataResolver(componentModel);
-    MetadataType outputMetadata = resolver.getOutputMetadata(context, dsqlQuery);
+    DsqlQuery dsqlQuery = dsqlParser.parse("dsql:SELECT id FROM Circle WHERE (diameter < 18)");
+    MetadataType outputMetadata = getQueryMetadataResolver().getOutputMetadata(context, dsqlQuery);
 
     ObjectType type = getAndAssertArrayTypeOf(outputMetadata);
     assertThat(type.getFields(), hasSize(1));
@@ -67,9 +54,8 @@ public class DsqlQueryMetadataResolverTestCase {
 
   @Test
   public void getFullOutputMetadata() throws MetadataResolvingException, ConnectionException {
-    DsqlQuery dsqlQuery = PARSER.parse("dsql:SELECT * FROM Circle WHERE (diameter < 18)");
-    DsqlQueryMetadataResolver resolver = new DsqlQueryMetadataResolver(componentModel);
-    MetadataType outputMetadata = resolver.getOutputMetadata(context, dsqlQuery);
+    DsqlQuery dsqlQuery = dsqlParser.parse("dsql:SELECT * FROM Circle WHERE (diameter < 18)");
+    MetadataType outputMetadata = getQueryMetadataResolver().getOutputMetadata(context, dsqlQuery);
 
     ObjectType type = getAndAssertArrayTypeOf(outputMetadata);
     assertThat(type.getFields(), hasSize(3));
@@ -85,5 +71,11 @@ public class DsqlQueryMetadataResolverTestCase {
     ArrayType arrayType = (ArrayType) outputMetadata;
     assertThat(arrayType.getType(), is(instanceOf(ObjectType.class)));
     return (ObjectType) arrayType.getType();
+  }
+
+  private DsqlQueryMetadataResolver getQueryMetadataResolver() {
+    NullMetadataResolver outputResolver = new NullMetadataResolver();
+    MetadataExtensionEntityResolver entityResolver = new MetadataExtensionEntityResolver();
+    return new DsqlQueryMetadataResolver(entityResolver, outputResolver);
   }
 }

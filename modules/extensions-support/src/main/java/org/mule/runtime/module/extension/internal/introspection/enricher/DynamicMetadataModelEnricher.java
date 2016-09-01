@@ -11,7 +11,6 @@ import static java.util.Arrays.stream;
 import static org.mule.runtime.module.extension.internal.util.IntrospectionUtils.getAnnotation;
 import org.mule.metadata.api.ClassTypeLoader;
 import org.mule.runtime.core.internal.metadata.DefaultMetadataResolverFactory;
-import org.mule.runtime.core.internal.metadata.DefaultQueryEntityResolverFactory;
 import org.mule.runtime.core.internal.metadata.NullMetadataResolverFactory;
 import org.mule.runtime.extension.api.annotation.Query;
 import org.mule.runtime.extension.api.annotation.metadata.Content;
@@ -29,7 +28,6 @@ import org.mule.runtime.extension.api.introspection.declaration.fluent.SourceDec
 import org.mule.runtime.extension.api.introspection.declaration.spi.ModelEnricher;
 import org.mule.runtime.extension.api.introspection.declaration.type.ExtensionsTypeLoaderFactory;
 import org.mule.runtime.extension.api.introspection.metadata.MetadataResolverFactory;
-import org.mule.runtime.extension.api.introspection.metadata.NullMetadataResolver;
 import org.mule.runtime.extension.api.introspection.property.LayoutModelPropertyBuilder;
 import org.mule.runtime.extension.api.introspection.property.MetadataContentModelProperty;
 import org.mule.runtime.extension.api.introspection.property.MetadataKeyIdModelProperty;
@@ -37,6 +35,7 @@ import org.mule.runtime.extension.api.introspection.property.MetadataKeyPartMode
 import org.mule.runtime.extension.api.introspection.property.QueryModelProperty;
 import org.mule.runtime.module.extension.internal.introspection.describer.model.runtime.ParameterWrapper;
 import org.mule.runtime.module.extension.internal.metadata.MetadataScopeAdapter;
+import org.mule.runtime.module.extension.internal.metadata.QueryMetadataResolverFactory;
 import org.mule.runtime.module.extension.internal.model.property.DeclaringMemberModelProperty;
 import org.mule.runtime.module.extension.internal.model.property.ImplementingMethodModelProperty;
 import org.mule.runtime.module.extension.internal.model.property.ImplementingParameterModelProperty;
@@ -117,11 +116,8 @@ public class DynamicMetadataModelEnricher extends AbstractAnnotatedModelEnricher
 
           if (method.isAnnotationPresent(Query.class)) {
             Query query = method.getAnnotation(Query.class);
-            declaration.setEntityResolverFactory(new DefaultQueryEntityResolverFactory(query.entityResolver()));
-            declaration.setMetadataResolverFactory(new DefaultMetadataResolverFactory(NullMetadataResolver.class,
-                                                                                      NullMetadataResolver.class,
-                                                                                      query.outputResolver(),
-                                                                                      NullMetadataResolver.class));
+            declaration.setMetadataResolverFactory(new QueryMetadataResolverFactory(query.outputResolver(),
+                                                                                    query.entityResolver()));
             addNativeQueryParameterModelProperty(declaration, query);
             declareOutputType(declaration.getOutput());
             declareComponentMetadataKeyId(method, declaration);
@@ -137,7 +133,6 @@ public class DynamicMetadataModelEnricher extends AbstractAnnotatedModelEnricher
             }
           }
         });
-
   }
 
   private void addNativeQueryParameterModelProperty(OperationDeclaration declaration, Query query) {

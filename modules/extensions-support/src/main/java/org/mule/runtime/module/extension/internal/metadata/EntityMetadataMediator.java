@@ -23,7 +23,6 @@ import org.mule.runtime.api.metadata.resolving.MetadataOutputResolver;
 import org.mule.runtime.api.metadata.resolving.MetadataResult;
 import org.mule.runtime.api.metadata.resolving.QueryEntityResolver;
 import org.mule.runtime.extension.api.introspection.metadata.MetadataResolverFactory;
-import org.mule.runtime.extension.api.introspection.metadata.QueryEntityResolverFactory;
 import org.mule.runtime.extension.api.introspection.operation.RuntimeOperationModel;
 
 import java.util.Set;
@@ -40,10 +39,10 @@ import java.util.Set;
  */
 public class EntityMetadataMediator {
 
-  private final QueryEntityResolverFactory resolverFactory;
+  private final MetadataResolverFactory resolverFactory;
 
   public EntityMetadataMediator(RuntimeOperationModel operationModel) {
-    this.resolverFactory = operationModel.getQueryEntityResolverFactory();
+    this.resolverFactory = operationModel.getMetadataResolverFactory();
   }
 
   public MetadataResult<MetadataKeysContainer> getEntityKeys(MetadataContext context) {
